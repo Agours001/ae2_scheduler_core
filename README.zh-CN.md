@@ -205,9 +205,7 @@ public interface SchedulingPolicy {
 3. **只在取消时做上述释放。** 正常做完却留下材料的订单，仍与原版一致，等 CPU 空闲才清理。
 4. **拆除含调度核心的 CPU 的任意方块**时，AE2 自身会抛 `IllegalStateException: The node has already been initialized`，导致拆除中断。它发生在 AE2 自己的 teardown 内，订单已取消、材料已归还。**未修复。**
 5. **配置热重载未做**，改动需重启。
-6. **未与高级 AE（AdvancedAE）共存测试过**——只有代码层满足共存（零 `@Overwrite`）。
-7. **慢机器（周期 > 20 tick）在测试装置上无法复现**，该情形只有仿真证据。
-8. **调度器一次只服务一个订单一个 tick。** 更长时间片由 `RoundRobinPolicy` 的构造参数支持，但未作为配置暴露，也未验证。
+6. **慢机器（周期 > 20 tick）在测试装置上无法复现**，该情形只有仿真证据。
 
 ## 许可与致谢
 
