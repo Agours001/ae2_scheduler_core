@@ -62,6 +62,7 @@ Splitting the per-tick budget between jobs as tokens is explicitly forbidden her
 - **Per-order persistence** — every order is saved and restored individually; a restart does not lose the queue.
 - **Stuck-job repair** — recovers a save whose CPU is permanently busy because of an untracked job.
 - **At most one core per CPU** — a multiblock holding two cores simply refuses to form, so there is never any ambiguity about which CPU is scheduled.
+- **In-game guide** — hover the Scheduler Core and press the guide key (the same one AE2's guide uses) to get a page covering what the mod solves, both components with their recipes, and how to add the core to a CPU multiblock.
 - **No `@Overwrite`** — every hook is an `@Inject`. The mod coexists with other AE2 addons at the code level.
 
 ## Requirements

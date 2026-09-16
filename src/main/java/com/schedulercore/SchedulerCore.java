@@ -96,6 +96,9 @@ public final class SchedulerCore {
                 .addListener(com.schedulercore.measure.RigCompare::onServerTick);
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS
                 .addListener(com.schedulercore.measure.RigSeedCommand::register);
+        // The in-game guide (GuideME, shipped by AE2). Data-only: pages live under
+        // assets/schedulercore/ae2guide/ and the page front matter maps items to them.
+        com.schedulercore.client.SchedulerCoreGuide.register();
         LOG.info("{} loaded: scheduler core block + component; multi-job time-slice scheduler is armed.",
                 MOD_ID);
     }

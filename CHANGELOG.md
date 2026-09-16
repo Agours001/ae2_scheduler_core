@@ -30,6 +30,9 @@ DeepSeek-V4.1-Flash); see the README for details.
 - **Stuck-job repair** — recovers a save whose CPU is permanently busy from an untracked job.
 - **One core per CPU is enforced** by refusing to form the multiblock, so a CPU can never have two
   competing scheduler cores.
+- **In-game guide** (GuideME, the same framework AE2's own guide uses): hover the Scheduler Core and
+  press the guide key for a page covering the problem this solves, both components with their recipes,
+  and how to add the core to a CPU multiblock.
 - **Diagnostic command suite** under `/schedulercore` (rig setup, A/B measurement against vanilla,
   scheduler inspection, headless UI probes).
 
