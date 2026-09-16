@@ -1,0 +1,11 @@
+{
+  "loader": "schedulercore:crafting_cube",
+  "textures": {
+    "particle": "ae2:block/crafting/light_base",
+    "ring_corner": "ae2:block/crafting/ring_corner",
+    "ring_side_hor": "ae2:block/crafting/ring_side_hor",
+    "ring_side_ver": "ae2:block/crafting/ring_side_ver",
+    "base": "ae2:block/crafting/light_base",
+    "light": "schedulercore:block/scheduler_core_light"
+  }
+}

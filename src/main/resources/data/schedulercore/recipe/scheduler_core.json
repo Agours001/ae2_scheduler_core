@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "g": { "item": "ae2:quartz_glass" },
+    "e": { "item": "ae2:engineering_processor" },
+    "c": { "item": "ae2:calculation_processor" },
+    "l": { "item": "ae2:logic_processor" },
+    "r": { "item": "minecraft:redstone" },
+    "q": { "item": "ae2:charged_certus_quartz_crystal" }
+  },
+  "pattern": [
+    "geg",
+    "crl",
+    "qqq"
+  ],
+  "result": { "count": 1, "id": "schedulercore:scheduler_core" }
+}

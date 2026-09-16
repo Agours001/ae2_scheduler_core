@@ -1,0 +1,45 @@
+MIT License
+
+Copyright (c) 2026 Agours001
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------------
+THIRD-PARTY NOTICES
+
+This mod is an addon for Applied Energistics 2 and does not include, copy or
+modify any AE2 source code. It is distributed separately and requires AE2 to be
+installed by the user.
+
+- Applied Energistics 2 (AE2) — https://github.com/AppliedEnergistics/Applied-Energistics-2
+  Copyright (c) the AE2 authors. Licensed under the GNU Lesser General Public
+  License v3.0 (LGPL-3.0). AE2 is a required dependency and is NOT bundled with
+  this project.
+- GuideME (Guidebook framework used by AE2) — Copyright (c) the AE2 authors.
+  Licensed under LGPL-3.0. Required at runtime by AE2; NOT bundled with this
+  project.
+
+Portions of Minecraft, NeoForge and their APIs are the property of their
+respective authors and are used under their own licenses.
+
+If you reuse this project or parts of it, please credit the project and its
+author: Agours001 — https://github.com/Agours001
+
+This mod was implemented by AI in collaboration with its author (DSH / DeepSeek-V4.1-Flash);
+see the README for details.

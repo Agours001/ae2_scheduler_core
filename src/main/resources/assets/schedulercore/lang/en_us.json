@@ -1,0 +1,10 @@
+{
+  "itemGroup.schedulercore": "Scheduler Core",
+  "block.schedulercore.scheduler_core_block": "Scheduler Core",
+  "item.schedulercore.scheduler_core": "Scheduler Core Component",
+  "tooltip.schedulercore.scheduler_core.line1": "Install into a crafting unit to enable job scheduling for that CPU",
+  "tooltip.schedulercore.scheduler_core.line2": "At most one scheduler core per crafting CPU",
+  "tooltip.schedulercore.scheduler_core_block.line1": "Lets one crafting CPU hold several crafting jobs at once",
+  "tooltip.schedulercore.scheduler_core_block.line2": "At most one per CPU multiblock",
+  "message.schedulercore.duplicate_core": "This crafting CPU already has a scheduler core - only one is allowed per CPU."
+}

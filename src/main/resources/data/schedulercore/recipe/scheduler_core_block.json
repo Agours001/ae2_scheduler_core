@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    { "item": "ae2:crafting_unit" },
+    { "item": "schedulercore:scheduler_core" }
+  ],
+  "result": { "count": 1, "id": "schedulercore:scheduler_core_block" }
+}

@@ -1,0 +1,7 @@
+# Third-party dependency jars go here (gitignored).
+#
+# The build needs, but does not ship:
+#   appliedenergistics2-19.2.17.jar
+#   guideme-21.1.17.jar
+#
+# Both are present in the mods/ folder of any AE2 modpack instance. See the README.

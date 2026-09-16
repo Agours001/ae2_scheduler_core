@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------------
+# ae2_scheduler_core (调度核心) — what must never enter version control
+# ---------------------------------------------------------------------------
+# Gradle / build output
+build/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+out/
+classes/
+
+# Dev run directory: worlds, logs, crash reports, mixin dumps.
+# NOTE: keep /run/ ignored as a whole — the reusable test rig is meant to be
+# rebuilt by commands, not committed (a world dir is hundreds of MB).
+/run/
+
+# Logs and one-off measurement dumps
+*.log
+logs/
+runserver-*.txt
+*.hprof
+
+# IDE / editor
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+*.swp
+
+# OS noise
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Local machine overrides (paths, tokens, machine-specific tweaks)
+local.properties
+.env
+*.local
+
+# ---------------------------------------------------------------------------
+# Third-party dependency jars
+#
+# The AE2 / GuideME jars are NOT part of this repository (they are ~17 MB of
+# someone else's LGPL-licensed code, and shipping binaries in a source repo is
+# poor practice). Put them in libs/ locally before building - see README.
+# ---------------------------------------------------------------------------
+libs/*.jar
+!libs/.gitkeep

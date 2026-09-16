@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "formed=false,powered=false": {
+      "model": "schedulercore:block/scheduler_core_block"
+    },
+    "formed=false,powered=true": {
+      "model": "schedulercore:block/scheduler_core_block"
+    },
+    "formed=true,powered=false": {
+      "model": "schedulercore:block/scheduler_core_block_formed"
+    },
+    "formed=true,powered=true": {
+      "model": "schedulercore:block/scheduler_core_block_formed"
+    }
+  }
+}

@@ -1,0 +1,65 @@
+name: Bug report
+description: Something is wrong with the scheduler - an order misbehaves, items are lost, or the game crashes
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. This mod changes how a crafting CPU holds jobs,
+        so the details below are usually what makes a report reproducible.
+
+        **Before you file:** if the problem is "the CPU keeps showing an order's materials after I
+        cancelled it", please check the *Known limitations* section of the README first - that one is
+        documented behaviour with a known cause.
+  - type: input
+    id: mod-version
+    attributes:
+      label: Scheduler Core version
+      description: The version of this mod (from the jar filename or the mods list).
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: input
+    id: ae2-neoforge
+    attributes:
+      label: AE2 and NeoForge versions
+      placeholder: "AE2 19.2.17, NeoForge 21.1.250"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what happened instead? If orders are involved, say how many and what each one crafts.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Build a crafting CPU with one Scheduler Core and a 16k storage block
+        2. Submit order A (e.g. 1000 sticks) and order B (e.g. 1000 furnaces)
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: In-game diagnostics
+      description: |
+        If you can, run `/schedulercore schedstate` and `/schedulercore status` while the problem is
+        visible and paste the output here. These commands exist for exactly this purpose. The mod
+        also logs to the game log; enable `/schedulercore trace on` for a per-tick line (turn it off
+        again afterwards - it is very verbose).
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: log
+    attributes:
+      label: Log or crash report
+      description: Attach `logs/latest.log` (or the crash report) if the game crashed or logged errors.
+    validations:
+      required: false

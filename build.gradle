@@ -1,0 +1,106 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.146'
+}
+
+group = mod_group
+version = mod_version
+base {
+    archivesName = mod_id
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+neoForge {
+    version = neoforge_version
+
+    runs {
+        client {
+            client()
+            programArguments.addAll '--username', 'Dev'
+        }
+        server {
+            server()
+            // Headless smoke test: `gradlew runServer` must reach "Done" without mixin/registry errors.
+            programArguments.addAll '--nogui'
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+    // Modrinth's Maven service is the canonical source for AE2 and GuideME here. Their own Maven
+    // (maven.appliedenergistics.org) currently has no DNS record at all, so it cannot be the primary
+    // source - a plain `gradlew build` has to work without the user fetching anything by hand.
+    // Coordinates are the Modrinth project ids; the version is the mod version.
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
+}
+
+dependencies {
+    // AE2 and GuideME are compile-only: at runtime the real mods come from the game instance.
+    // They are fetched automatically; nothing has to be placed in libs/.
+    compileOnly "maven.modrinth:XxWD5pD3:${ae2_version}"          // Applied Energistics 2
+    runtimeOnly "maven.modrinth:XxWD5pD3:${ae2_version}"
+    compileOnly "maven.modrinth:Ck4E7v7R:${guideme_version}"      // GuideME
+    runtimeOnly "maven.modrinth:Ck4E7v7R:${guideme_version}"
+
+    // Optional escape hatch for a machine with no network at all: drop the two jars into libs/ and
+    // they take precedence. libs/*.jar is gitignored; nobody needs this for a normal build.
+    def localLibs = fileTree(dir: 'libs', include: ['*.jar'])
+    if (!localLibs.isEmpty()) {
+        compileOnly localLibs
+        runtimeOnly localLibs
+    }
+
+    // The L1 invariant tests are plain JUnit: they exercise the pure scheduling logic and must not
+    // need Minecraft or AE2 on the classpath, so that `gradlew test` stays a fast pre-flight check.
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        exceptionFormat 'full'
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+processResources {
+    def expandProps = [
+            mod_id            : mod_id,
+            mod_name          : mod_name,
+            mod_version       : mod_version,
+            mod_authors       : mod_authors,
+            mod_description   : mod_description,
+            mod_license       : mod_license,
+            neoforge_version  : neoforge_version,
+            minecraft_version : minecraft_version
+    ]
+    inputs.properties(expandProps)
+    filesMatching(['META-INF/neoforge.mods.toml']) {
+        expand expandProps
+    }
+}

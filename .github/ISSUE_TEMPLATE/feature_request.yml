@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest a capability, a scheduling policy, or a user-facing improvement
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please keep in mind what this mod is: it shares **one** CPU between several orders in whole-tick
+        time slices, and it is built around the guarantees listed in the README. In particular, any
+        suggestion that splits a tick's budget between orders will be declined - that design was tried
+        and rejected before this project existed.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation in game, not the implementation you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which area is this about?
+      options:
+        - Scheduling behaviour (how the CPU picks whose turn it is)
+        - The crafting status screen / per-order UI
+        - Commands and diagnostics
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: guarantees
+    attributes:
+      label: Guarantees
+      options:
+        - label: This does not require splitting a single tick's budget between orders
+          required: true

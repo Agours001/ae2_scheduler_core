@@ -1,0 +1,10 @@
+{
+  "itemGroup.schedulercore": "调度核心",
+  "block.schedulercore.scheduler_core_block": "调度核心",
+  "item.schedulercore.scheduler_core": "调度核心部件",
+  "tooltip.schedulercore.scheduler_core.line1": "装入合成单元，为该 CPU 解锁任务调度",
+  "tooltip.schedulercore.scheduler_core.line2": "每个合成 CPU 最多安装一个调度核心",
+  "tooltip.schedulercore.scheduler_core_block.line1": "让一台合成 CPU 同时容纳多个合成任务",
+  "tooltip.schedulercore.scheduler_core_block.line2": "每个 CPU 多方块最多一个",
+  "message.schedulercore.duplicate_core": "该合成 CPU 已经装有调度核心——每个 CPU 只允许一个。"
+}

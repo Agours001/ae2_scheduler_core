@@ -1,0 +1,15 @@
+# Normalise line endings so a Windows checkout cannot corrupt the shell scripts.
+# NOTE: deliberately no working-tree-encoding here - the sources are already UTF-8 and forcing a
+# working-tree encoding would make git rewrite every file on checkout.
+* text=auto eol=lf
+
+# Gradle wrapper must stay LF and executable.
+gradlew text eol=lf
+*.bat text eol=crlf
+
+# PowerShell helper scripts.
+*.ps1 text eol=crlf
+
+# Binaries - never touch.
+*.jar binary
+*.png binary
