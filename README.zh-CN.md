@@ -100,11 +100,6 @@ libs/guideme-21.1.17.jar
 
 这两个 jar 在任何装了 AE2 的整合包实例的 `mods/` 下都有。这是兜底手段，不是常规路径。
 
-> **Windows 上若 `gradlew test` 报 `ClassNotFoundException: GradleWorkerMain`**：说明账户名含非 ASCII
-> 字符，Gradle 用平台码页写了 fork 出去的 JVM 参数文件、而 JVM 按 UTF-8 读它。把 Gradle 指到纯 ASCII
-> 路径即可：先 `robocopy "%USERPROFILE%\.gradle" C:\gradle-home /E`，再 `set GRADLE_USER_HOME=C:\gradle-home`。
-> `gradle.properties` 已强制 daemon 用 UTF-8，覆盖了常见情形。
-
 ## 实现原理
 
 本模组只挂 AE2 `CraftingCpuLogic` 的**三处**，仅此三处：
