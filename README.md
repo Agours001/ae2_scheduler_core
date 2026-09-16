@@ -102,11 +102,6 @@ libs/guideme-21.1.17.jar
 
 Both are present under `mods/` in any AE2 modpack instance. This is an escape hatch, not the normal path.
 
-> **If `gradlew test` fails with `ClassNotFoundException: GradleWorkerMain`** on Windows, the account name
-> contains non-ASCII characters and Gradle wrote its forked-JVM argument file in the platform charset while
-> the JVM read it as UTF-8. Point Gradle at an ASCII path:
-> `set GRADLE_USER_HOME=C:\gradle-home` (copy `%USERPROFILE%\.gradle` there first). `gradle.properties`
-> already forces the daemon to UTF-8, which covers the common case.
 
 ## How it works
 
