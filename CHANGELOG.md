@@ -4,6 +4,29 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-09-17
+
+A small update: the in-game guide is now shipped with the mod, and the Actions workflow was removed
+from the repository (it had already served its purpose).
+
+### Added
+
+- **In-game guide page** (GuideME — the same framework AE2's own guide uses). Hover the Scheduler
+  Core or the Scheduler Core Component and press the guide key to open a page that covers:
+  what problem this mod solves, both components with their recipes, how to add the core to a CPU
+  multiblock, and the things that bite (one core per CPU, the core is not storage, removing a block
+  triggers AE2's own teardown exception, and the shared-pool caveat when cancelling an order).
+  - The page is **Chinese only**. GuideME supports per-language pages, but AE2's own translations do
+    not ship inside its jar either, so a single well-written language is what this release does.
+  - Recipes are rendered from the recipe manager (`<RecipeFor>`), so the guide cannot drift away
+    from the real recipes.
+
+### Removed
+
+- The GitHub Actions workflow (`.github/workflows/build.yml`). The build was green in CI; it was
+  removed to keep the repository to just the mod and its documentation. Build locally with
+  `./gradlew build` — dependencies resolve automatically.
+
 ## [1.0.0] - 2026-09-17
 
 First stable release. Implemented by AI in collaboration with its author (DSH driving
