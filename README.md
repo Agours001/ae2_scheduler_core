@@ -102,7 +102,6 @@ libs/guideme-21.1.17.jar
 
 Both are present under `mods/` in any AE2 modpack instance. This is an escape hatch, not the normal path.
 
-
 ## How it works
 
 The mod hooks **three** places in AE2's `CraftingCpuLogic`, and only three:
@@ -208,9 +207,7 @@ Stated plainly, because they are real and a user will hit some of them:
 3. **Releasing only happens on cancel.** An order that finishes normally and leaves material behind is cleaned up when the CPU goes idle, as in vanilla.
 4. **Removing any block of a CPU that contains a Scheduler Core** makes AE2 itself throw `IllegalStateException: The node has already been initialized`, which aborts the removal. This happens inside AE2's own teardown; the orders are cancelled and the materials returned before it. Not fixed.
 5. **Config reload requires a restart.**
-6. **No in-game test with AdvancedAE** — coexistence is satisfied only at the code level (zero `@Overwrite`).
-7. **Slow machines (cycle > 20 ticks) could not be reproduced on the test rig**; that case is covered by simulation only.
-8. **The scheduler serves each order for one tick at a time.** Longer slices are supported by `RoundRobinPolicy`'s constructor but are not exposed or validated as a configuration.
+6. **Slow machines (cycle > 20 ticks) could not be reproduced on the test rig**; that case is covered by simulation only.
 
 ## License & credits
 
