@@ -4,6 +4,33 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-09-17
+
+**Fix: the mod refused to load on any pack running a NeoForge build older than the one this project
+was developed against.** On 21.1.248 it failed with `Mod schedulercore requires neoforge 21.1.250 or
+above`, even though nothing in the mod needs a 21.1.250-era API.
+
+### Fixed
+
+- **The declared NeoForge range no longer follows the development version.** `mods.toml` said
+  `[21.1.250,)` because the range was expanded from `neoforge_version`, which is simply the version
+  used to build and test. It now comes from its own property, `neoforge_dependency_range`, set to
+  `[21.1.169,21.2)` — the same floor AE2 itself requires, so this mod never imposes a stricter
+  NeoForge than its own dependency does.
+  - The mod only uses NeoForge APIs that have been present throughout the 1.21.1 line:
+    `IEventBus`, `@Mod`, `DeferredRegister`, `RegisterCapabilitiesEvent`, `RegisterCommandsEvent`,
+    `ServerTickEvent`, and the client model-loader interfaces.
+  - Checked against a 353-mod pack: **no other mod in it requires more than 21.1.248**, so this mod
+    was the only thing blocking it. AE2 19.2.17 requires `[21.1.169,)` itself.
+- The AE2 range is now declared the same way (`ae2_dependency_range`), so it is a deliberate value
+  rather than one derived from the build dependency.
+
+### Changed
+
+- The jar is now named with the Minecraft version it targets, e.g.
+  `schedulercore-mc1.21.1-1.0.2.jar`, so the right file is obvious in a `mods/` folder holding
+  several builds.
+
 ## [1.0.1] - 2026-09-17
 
 A small update: the in-game guide is now shipped with the mod, and the Actions workflow was removed

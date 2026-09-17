@@ -15,7 +15,7 @@ logoFile = "schedulercore_logo.png"
 [[dependencies.${mod_id}]]
 modId = "neoforge"
 type = "required"
-versionRange = "[${neoforge_version},)"
+versionRange = "${neoforge_dependency_range}"
 ordering = "NONE"
 side = "BOTH"
 
@@ -29,7 +29,7 @@ side = "BOTH"
 [[dependencies.${mod_id}]]
 modId = "ae2"
 type = "required"
-versionRange = "[19.2.0,)"
+versionRange = "${ae2_dependency_range}"
 ordering = "AFTER"
 side = "BOTH"
 

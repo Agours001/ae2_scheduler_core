@@ -6,7 +6,10 @@ plugins {
 group = mod_group
 version = mod_version
 base {
-    archivesName = mod_id
+    // Gradle already appends the project version to the file name, so this only adds the Minecraft
+    // version: schedulercore-1.0.2-mc1.21.1.jar. The mod targets one Minecraft version, and this makes
+    // the matching jar obvious in a mods/ folder holding several builds.
+    archivesName = "${mod_id}-mc${minecraft_version}"
 }
 
 java {
@@ -90,14 +93,17 @@ tasks.withType(JavaCompile).configureEach {
 
 processResources {
     def expandProps = [
-            mod_id            : mod_id,
-            mod_name          : mod_name,
-            mod_version       : mod_version,
-            mod_authors       : mod_authors,
-            mod_description   : mod_description,
-            mod_license       : mod_license,
-            neoforge_version  : neoforge_version,
-            minecraft_version : minecraft_version
+            mod_id                    : mod_id,
+            mod_name                  : mod_name,
+            mod_version               : mod_version,
+            mod_authors               : mod_authors,
+            mod_description           : mod_description,
+            mod_license               : mod_license,
+            neoforge_version          : neoforge_version,
+            minecraft_version         : minecraft_version,
+            // Runtime ranges come from their own properties, NOT from the development versions.
+            neoforge_dependency_range : neoforge_dependency_range,
+            ae2_dependency_range      : ae2_dependency_range
     ]
     inputs.properties(expandProps)
     filesMatching(['META-INF/neoforge.mods.toml']) {
