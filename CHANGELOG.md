@@ -4,6 +4,48 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-09-17
+
+**Fix: on a modpack, the per-order rows could disappear from the crafting status screen, which turned
+every per-order action into "act on whichever order the CPU happens to be serving".** Reported from a
+real machine as three separate bugs — "only one CPU row", "resume only affects the last order", "cancel
+cancels everything" — that were in fact one bug.
+
+### Fixed
+
+- **Per-order rows no longer lose to another addon's CPU list.** `CraftingService.getCpus()` ends in
+  `ImmutableSet.builder()...build()`, and an addon that contributes CPUs of its own generally does so by
+  re-building *that same builder* at `RETURN` — AdvancedAE is one. The previous implementation read the
+  finished set and returned a new one, so whoever ran last won: on a pack, AdvancedAE's hook overwrote
+  the order rows. Nothing was logged on either side, which is why it looked like three unrelated UI bugs.
+  - The rows are now added **into AE2's own builder**, by wrapping the `build()` call with a MixinExtras
+    `@WrapOperation`. Anything that re-builds that builder afterwards keeps them, so the outcome no
+    longer depends on mixin ordering, and two mods wrapping the same call compose instead of colliding.
+  - Also removes the last reason the README had to say "every hook is an `@Inject`": there is still no
+    `@Overwrite` and still no `@Redirect`.
+- **The in-game guide no longer logs `Missing item: schedulercore:scheduler_core_block_upgrade` on every
+  launch.** `<RecipeFor>` resolves an *item*; that entry pointed at the in-place crafting-unit upgrade,
+  which is a recipe with no item output (`ae2:crafting_unit_transform`) and therefore cannot be rendered
+  that way. The operation is now described in text instead.
+- **Removed an empty `<GameScene>`** from the guide page, which rendered as a blank scene.
+
+### Changed
+
+- The diagnostic commands that report the network's CPU list (`/schedulercore cpus` and
+  `/schedulercore status`) now fall back to the acceptance rig's own grid when there is no player
+  position to search from. Run from a server console or RCON they used to answer "no AE grid found near
+  you" and nothing else.
+
+### Verified
+
+Reproduced and fixed in a development instance with **AdvancedAE 1.6.12** installed alongside this mod,
+with two orders running on one CPU:
+
+| | CPU list | suspend / resume | cancel |
+|---|---|---|---|
+| 1.0.2 | CPU rows only — no order rows, no error logged | toggled the order being served, not the one clicked | cancelled every order |
+| 1.0.3 | both CPU rows **and** one row per order | toggles only the selected order | cancels only the selected order |
+
 ## [1.0.2] - 2026-09-17
 
 **Fix: the mod refused to load on any pack running a NeoForge build older than the one this project

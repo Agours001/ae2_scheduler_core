@@ -1,11 +1,11 @@
 package com.schedulercore.mixin;
 
 import com.google.common.collect.ImmutableSet;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import appeng.api.networking.crafting.ICraftingCPU;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
@@ -20,6 +20,38 @@ import com.schedulercore.scheduler.SchedulerJobCpu;
  * this set ({@code CraftingStatusMenu} -> {@code ICraftingService.getCpus()}), assigns row serials by the
  * objects' identity, and routes a row click back to the very same object. A server cannot add a row any other
  * way, so per-order rows mean per-order objects - which is what {@link SchedulerJobCpu} supplies.
+ *
+ * <h2>Why the rows are added to AE2's own builder</h2>
+ *
+ * <p>Not a style choice - this is the difference between rows that survive on a modpack and rows that vanish
+ * silently. {@code getCpus()} ends in {@code ImmutableSet.builder()...build()}, and on a real pack more than
+ * one addon contributes entries:
+ *
+ * <pre>
+ * // AE2
+ * var builder = ImmutableSet.builder();
+ * for (var cluster : craftingCPUClusters) if (cluster.isActive() &amp;&amp; !cluster.isDestroyed()) builder.add(cluster);
+ * return builder.build();
+ *
+ * // AdvancedAE, on the same RETURN point
+ * for (var cluster : advancedAE$advCraftingCPUClusters) { ...builder.add(cpu); }
+ * cir.setReturnValue(builder.build());
+ * </pre>
+ *
+ * <p>A hook that reads {@code cir.getReturnValue()} and returns a <i>new</i> set containing its own entries
+ * therefore does not compose: whoever runs last wins, and the other mod's rows are dropped with no error on
+ * either side. That is exactly what happened. AdvancedAE injects at the same RETURN and rebuilds from AE2's
+ * own builder, so it overwrote this mod's rows - the crafting-status screen listed the CPU and nothing else,
+ * and every per-order action (suspend, resume, cancel, the details pane) silently fell back to "whatever
+ * order the CPU is serving right now". Reported from a real machine as three separate bugs - "only one CPU
+ * row", "resume only affects the last order", "cancel cancels everything" - that were one bug.
+ *
+ * <p>So the rows are added <b>into AE2's builder</b> instead of into a set of our own. Anything that later
+ * re-builds that builder - AdvancedAE, or any other addon that uses the same idiom - picks them up, and the
+ * behaviour no longer depends on which mixin happens to run last.
+ *
+ * <p>{@code @WrapOperation} rather than {@code @Redirect} for the same reason: two mods that wrap the same
+ * call both run, while two redirects on one call site are a hard mixin failure at startup.
  *
  * <h2>What this deliberately does not do</h2>
  *
@@ -37,35 +69,24 @@ import com.schedulercore.scheduler.SchedulerJobCpu;
 @Mixin(CraftingService.class)
 public class MixinCraftingService {
 
-    @Inject(method = "getCpus", at = @At("RETURN"), cancellable = true)
-    private void schedulercore$addScheduledOrders(CallbackInfoReturnable<ImmutableSet<ICraftingCPU>> cir) {
+    @WrapOperation(method = "getCpus", at = @At(value = "INVOKE",
+            target = "Lcom/google/common/collect/ImmutableSet$Builder;build()Lcom/google/common/collect/ImmutableSet;"))
+    private ImmutableSet<ICraftingCPU> schedulercore$addScheduledOrders(
+            ImmutableSet.Builder<ICraftingCPU> builder, Operation<ImmutableSet<ICraftingCPU>> original) {
         try {
-            var cpus = cir.getReturnValue();
-            if (cpus == null || cpus.isEmpty()) {
-                return;
-            }
-            ImmutableSet.Builder<ICraftingCPU> builder = null;
-            for (var cpu : cpus) {
-                if (!(cpu instanceof CraftingCPUCluster cluster)) {
-                    continue;
+            // Whatever the builder holds at this point is what AE2 itself put there - i.e. the real CPU
+            // clusters. Reading it back first keeps this hook from having to repeat AE2's own filter
+            // (isActive() && !isDestroyed()) and stay correct if that filter ever changes.
+            for (var cpu : builder.build()) {
+                if (cpu instanceof CraftingCPUCluster cluster) {
+                    builder.addAll(SchedulerJobCpu.forCluster(cluster));
                 }
-                var orders = SchedulerJobCpu.forCluster(cluster);
-                if (orders.isEmpty()) {
-                    continue;
-                }
-                if (builder == null) {
-                    builder = ImmutableSet.builder();
-                    builder.addAll(cpus);
-                }
-                builder.addAll(orders);
-            }
-            if (builder != null) {
-                cir.setReturnValue(builder.build());
             }
         } catch (Throwable t) {
             // A failure here must not remove the real CPUs from the list.
             com.schedulercore.SchedulerCore.LOG.error(
                     "[schedulercore] could not add per-order CPU entries", t);
         }
+        return original.call(builder);
     }
 }

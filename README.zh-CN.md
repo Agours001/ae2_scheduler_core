@@ -63,7 +63,8 @@ AE2 的合成 CPU 一次只能接一个订单。本模组增加一个 **调度�
 - **卡死作业修复**——修复"CPU 永远忙"的旧存档。
 - **每台 CPU 最多一个核心**——装两个则多方块**不成型**，不存在"哪台在调度"的歧义。
 - **内置 WIKI**——光标悬浮在"调度核心"上按快捷键（与 AE2 自带 WIKI 同一个键）即可打开，页面包含：它解决了什么问题、两个部件的用途与配方、如何加入 CPU 多方块，以及需要注意的事项。
-- **零 `@Overwrite`**——所有钩子都是 `@Inject`，代码层与其他 AE2 附属共存。
+- **与其他"提供 CPU"的附属共存**——逐单行是**加进 AE2 自己的 CPU 集合**里，而不是替换它；所以自带 CPU 的附属（例如 AdvancedAE）与本模组会同时出现在列表里。见[逐单行，以及它们共用的那个 CPU 集合](#逐单行以及它们共用的那个-cpu-集合)。
+- **零 `@Overwrite`、零 `@Redirect`**——所有钩子都是 `@Inject`，外加一处 MixinExtras 的 `@WrapOperation`，代码层与其他 AE2 附属共存。
 
 ## 环境要求
 
@@ -112,6 +113,27 @@ libs/guideme-21.1.17.jar
 | `insert` | 物品路由。多单共享一个库存时，原版的单 job 查找会记错订单。 |
 
 其余全部继续跑原版代码。服务某个订单期间，调度器把原版那个单 `job` 字段临时指向**该**订单，调用结束再还回去——于是 AE2 自己的执行循环原样运行，而不是被重新实现。
+
+### 逐单行，以及它们共用的那个 CPU 集合
+
+合成状态界面里的**每一行本身就是一个 `ICraftingCPU`**：菜单遍历 `ICraftingService.getCpus()` 生成行，用对象身份分配行号，点击某行时又把**同一个对象**交回来。服务端没有别的办法往这个列表里加行，所以每个订单都得到一个自己的轻量适配器（`SchedulerJobCpu`）；点中适配器那一行，就设定了详情面板、挂起按钮和取消按钮共同读取的**焦点**。
+
+于是 `getCpus()` 成了公共地带，而在整合包里，往这里贡献内容的附属不止一个。`CraftingService.getCpus()` 结尾是 `ImmutableSet.builder()...build()`，而自带 CPU 的附属通常是在 `RETURN` 处**重建同一个 builder** 来加入自己的 CPU——AdvancedAE 就是这样：
+
+```java
+// AE2
+var builder = ImmutableSet.builder();
+for (var cluster : craftingCPUClusters) if (cluster.isActive() && !cluster.isDestroyed()) builder.add(cluster);
+return builder.build();
+
+// AdvancedAE，在 RETURN
+for (var cpu : cluster.getActiveCPUs()) builder.add(cpu);
+cir.setReturnValue(builder.build());
+```
+
+因此"读出成品集合、再返回一个**新**集合"的写法**无法共存**：谁后跑谁生效，另一方的条目无声消失，双方都不报错。实机上就是这个结果——界面只列出 CPU 自己、一个订单行都没有，于是没有任何行可点，焦点永远设不上，所有逐单操作退化成"当前正在服务的那个订单"。它在报告里表现为三个看似无关的 bug（"只有一个 CPU 行"、"恢复只作用于最后一单"、"取消会取消全部"）。
+
+所以逐单行改为**加进 AE2 自己的 builder**，做法是包住那次 `build()` 调用（`@WrapOperation`；若用 `@Redirect`，别人再包同一调用点就是硬冲突）。此后任何重建该 builder 的附属都会带上这些行，结果也不再取决于 mixin 的应用顺序。已在开发实例中用 AdvancedAE 1.6.12 验证：旧写法下订单行不存在，现写法下四条条目全部在列。
 
 调度决策本身是不依赖 Minecraft 与 AE2 的纯逻辑（这也是 L1 测试能毫秒级跑起来的原因）：
 
@@ -207,6 +229,7 @@ public interface SchedulingPolicy {
 4. **拆除含调度核心的 CPU 的任意方块**时，AE2 自身会抛 `IllegalStateException: The node has already been initialized`，导致拆除中断。它发生在 AE2 自己的 teardown 内，订单已取消、材料已归还。**未修复。**
 5. **配置热重载未做**，改动需重启。
 6. **慢机器（周期 > 20 tick）在测试装置上无法复现**，该情形只有仿真证据。
+7. **逐单操作在"合成状态界面"里，不在 CPU 方块自己的界面里。** 右键合成 CPU 打开的那个界面**根本没有 CPU 列表**——那是 AE2 的布局，想加一个就等于自己写 GUI。它上面确实有挂起和取消按钮，但没有行可选就没有焦点，于是它们作用于整台 CPU：**挂起**切换"当前正在服务的那一单"，**取消**会取消该 CPU 上的全部订单。要逐单挂起/恢复/取消、要看逐单行，请打开合成终端的 **Status（状态）** 页。
 
 ## 许可与致谢
 

@@ -411,7 +411,13 @@ public final class RigMeasure {
     private static int reportAllCpus(CommandSourceStack source) {
         ServerLevel level = source.getLevel();
 
-        var grid = findGridNear(level, BlockPos.containing(source.getPosition()));
+        var grid = rigGrid(source);
+        // Say which grid answered: a console or a command block has no position, so "next to you" would be
+        // wrong in exactly the case this fallback exists for.
+        final String origin = grid != null ? "using the acceptance rig's grid" : "using the grid next to you";
+        if (grid == null) {
+            grid = findGridNear(level, BlockPos.containing(source.getPosition()));
+        }
         if (grid == null) {
             source.sendFailure(Component.literal(
                     "[schedulercore] no AE grid found near you. Stand next to (or inside) your crafting CPU"
@@ -419,7 +425,7 @@ public final class RigMeasure {
             return 0;
         }
 
-        source.sendSuccess(() -> Component.literal("using the grid next to you"), false);
+        source.sendSuccess(() -> Component.literal(origin), false);
 
         int cpuCount = grid.getCraftingService().getCpus().size();
         source.sendSuccess(() -> Component.literal(
@@ -548,7 +554,10 @@ public final class RigMeasure {
      */
     private static int schedulerStatus(CommandSourceStack source) {
         ServerLevel level = source.getLevel();
-        var grid = findGridNear(level, BlockPos.containing(source.getPosition()));
+        var grid = rigGrid(source);
+        if (grid == null) {
+            grid = findGridNear(level, BlockPos.containing(source.getPosition()));
+        }
         if (grid == null) {
             source.sendFailure(Component.literal(
                     "[schedulercore] no AE grid found near you. Stand next to (or inside) your crafting CPU"
@@ -715,7 +724,10 @@ public final class RigMeasure {
      */
     private static int uiProbeRows(CommandSourceStack source) {
         ServerLevel level = source.getLevel();
-        var grid = findGridNear(level, BlockPos.containing(source.getPosition()));
+        var grid = rigGrid(source);
+        if (grid == null) {
+            grid = findGridNear(level, BlockPos.containing(source.getPosition()));
+        }
         if (grid == null) {
             source.sendFailure(Component.literal("[schedulercore] no AE grid found near you"));
             return 0;
@@ -789,6 +801,22 @@ public final class RigMeasure {
         source.sendSuccess(() -> Component.literal("[schedulercore] cancel button: " + mode), true);
         be.getCluster().cancelJob();
         return 1;
+    }
+
+    /**
+     * The grid the rig's own CPU sits on.
+     *
+     * <p>Command blocks and RCON have no player position, so a probe that located its grid "near the command
+     * source" silently answered nothing when driven from a console. Anchoring to the rig's controller removes
+     * that dependency and makes every probe addressable from RCON.
+     */
+    private static appeng.api.networking.IGrid rigGrid(CommandSourceStack source) {
+        ServerLevel level = source.getLevel();
+        if (level.getBlockEntity(SchedulerRigCommand.aaCorePos()) instanceof CraftingBlockEntity be
+                && be.getCluster() != null) {
+            return be.getCluster().getGrid();
+        }
+        return null;
     }
 
     private static com.schedulercore.scheduler.MultiJobState rigSchedulerState(CommandSourceStack source,

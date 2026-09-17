@@ -78,9 +78,9 @@ item_ids:
 
 <RecipeFor id="schedulercore:scheduler_core_block" />
 
-也可以用部件对着已有的合成单元直接改造（不消耗工作台）：
-
-<RecipeFor id="schedulercore:scheduler_core_block_upgrade" />
+也可以**手里拿着部件，对着世界里已有的合成单元方块右键**，把它就地改造，不需要工作台。
+这走的是 AE2 自己的"合成单元改造"配方类型，和把合成单元升级成合成存储是同一套操作。
+（这种配方没有物品输出，指南和 JEI 都只能示意，故此处不列出图示。）
 
 ---
 
@@ -94,10 +94,6 @@ item_ids:
 
 **最简单的可用做法**：把现有 CPU 里的一块普通合成单元换成调度核心方块。
 不需要拆掉整台 CPU，也不需要增加方块数量。
-
-<GameScene zoom="4" background="transparent">
-  <IsometricCamera yaw="195" pitch="30" />
-</GameScene>
 
 ### 需要注意的地方
 

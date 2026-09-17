@@ -63,7 +63,8 @@ Splitting the per-tick budget between jobs as tokens is explicitly forbidden her
 - **Stuck-job repair** — recovers a save whose CPU is permanently busy because of an untracked job.
 - **At most one core per CPU** — a multiblock holding two cores simply refuses to form, so there is never any ambiguity about which CPU is scheduled.
 - **In-game guide** — hover the Scheduler Core and press the guide key (the same one AE2's guide uses) to get a page covering what the mod solves, both components with their recipes, and how to add the core to a CPU multiblock.
-- **No `@Overwrite`** — every hook is an `@Inject`. The mod coexists with other AE2 addons at the code level.
+- **Coexists with other CPU-providing addons** — the per-order rows are added into AE2's own CPU set rather than replacing it, so an addon that contributes CPUs of its own (AdvancedAE, for one) and this mod both appear in the list. See [Per-order rows](#per-order-rows-and-the-cpu-set-they-share).
+- **No `@Overwrite`, no `@Redirect`** — every hook is an `@Inject` plus a single MixinExtras `@WrapOperation`. The mod coexists with other AE2 addons at the code level.
 
 ## Requirements
 
@@ -114,6 +115,27 @@ The mod hooks **three** places in AE2's `CraftingCpuLogic`, and only three:
 | `insert` | Item routing. With several jobs sharing one inventory, vanilla's single-job lookup would credit the wrong order. |
 
 Everything else keeps running vanilla code. While an order is being served, the scheduler points vanilla's single `job` field at *that* order for the duration of the call and restores it afterwards — so AE2's own execution loop runs verbatim instead of being reimplemented.
+
+### Per-order rows, and the CPU set they share
+
+Every row of the crafting status screen **is** an `ICraftingCPU`: the menu iterates `ICraftingService.getCpus()`, assigns row serials by object identity, and hands that same object back when a row is clicked. There is no other way for a server to add a row, so each order gets a thin adapter of its own (`SchedulerJobCpu`), and clicking that adapter's row sets the focus that the details pane, the suspend button and the cancel button all read.
+
+That makes `getCpus()` shared ground, and on a modpack more than one addon contributes to it. `CraftingService.getCpus()` ends in `ImmutableSet.builder()...build()`, and an addon that adds its own CPUs typically does so by re-building **that same builder** at `RETURN` — AdvancedAE, for instance:
+
+```java
+// AE2
+var builder = ImmutableSet.builder();
+for (var cluster : craftingCPUClusters) if (cluster.isActive() && !cluster.isDestroyed()) builder.add(cluster);
+return builder.build();
+
+// AdvancedAE, at RETURN
+for (var cpu : cluster.getActiveCPUs()) builder.add(cpu);
+cir.setReturnValue(builder.build());
+```
+
+An implementation that reads the finished set and returns a *new* one therefore does not compose: whoever runs last wins, and the other side's entries vanish with no error anywhere. That is what happened on a real pack — the screen listed the CPU and no orders at all, so no row could be clicked, the focus was never set, and every per-order action fell back to "whichever order the CPU is serving". It surfaced as three unrelated-looking bugs ("only one CPU row", "resume only affects the last order", "cancel cancels everything").
+
+So the rows are added **into AE2's builder** instead of into a set of our own, by wrapping the `build()` call (`@WrapOperation`, which composes with other wrappers where `@Redirect` would be a hard conflict). Anything that re-builds that builder afterwards picks them up, and the result no longer depends on mixin ordering. Verified against AdvancedAE 1.6.12 in a development instance: with the previous approach the order rows were absent, with this one all four entries are present.
 
 The scheduling decision itself is pure logic with no Minecraft or AE2 dependency (that is what makes the L1 test suite possible):
 
@@ -209,6 +231,7 @@ Stated plainly, because they are real and a user will hit some of them:
 4. **Removing any block of a CPU that contains a Scheduler Core** makes AE2 itself throw `IllegalStateException: The node has already been initialized`, which aborts the removal. This happens inside AE2's own teardown; the orders are cancelled and the materials returned before it. Not fixed.
 5. **Config reload requires a restart.**
 6. **Slow machines (cycle > 20 ticks) could not be reproduced on the test rig**; that case is covered by simulation only.
+7. **Per-order control lives in the crafting status screen, not in the CPU block's own screen.** The block's screen (right-clicking a crafting CPU) has no CPU list at all — that is AE2's layout, and adding one would mean writing GUI code. What it does have is the suspend and cancel buttons, and with no row to select there is no focus, so they act on the CPU as a whole: **suspend** toggles the order currently being served, **cancel** cancels every order on that CPU. For per-order suspend/resume/cancel and for the per-order rows, open the **Status** tab of a crafting terminal.
 
 ## License & credits
 
