@@ -102,6 +102,8 @@ libs/guideme-21.1.17.jar
 
 这两个 jar 在任何装了 AE2 的整合包实例的 `mods/` 下都有。这是兜底手段，不是常规路径。
 
+**用它来验证"与其他附属是否打架"**：把对方附属的 jar（连同它自己的前置）也丢进 `libs/`，`./gradlew runServer` 起服，然后看 `/schedulercore uiprobe rows`——列表里必须**同时**有 CPU 行和每个在跑订单的行。如果 CPU 行在、订单行没有，说明有别的模组也在争 `getCpus()`，见[逐单行，以及它们共用的那个 CPU 集合](#逐单行以及它们共用的那个-cpu-集合)。1.0.3 修的 AdvancedAE 互操作问题就是这样被抓到、复现并修掉的；`libs/` 已 gitignore，不会留下垃圾。
+
 ## 实现原理
 
 本模组只挂 AE2 `CraftingCpuLogic` 的**三处**，仅此三处：

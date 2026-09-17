@@ -104,6 +104,8 @@ libs/guideme-21.1.17.jar
 
 Both are present under `mods/` in any AE2 modpack instance. This is an escape hatch, not the normal path.
 
+**Testing this mod against another addon.** The same directory is how an interop problem gets caught: copy the other addon's jar (and its own dependencies) into `libs/`, run `./gradlew runServer`, and check `/schedulercore uiprobe rows`. The list must contain the CPU rows **and** one row per running order; if the order rows are missing while the CPU rows are there, another mod is competing for `getCpus()` — see [Per-order rows](#per-order-rows-and-the-cpu-set-they-share). That is exactly how the AdvancedAE interaction in 1.0.3 was found, reproduced and fixed; `libs/` is gitignored, so nothing is left behind.
+
 ## How it works
 
 The mod hooks **three** places in AE2's `CraftingCpuLogic`, and only three:
