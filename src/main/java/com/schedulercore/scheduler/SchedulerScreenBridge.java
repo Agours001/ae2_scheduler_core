@@ -32,4 +32,15 @@ public interface SchedulerScreenBridge {
      * (or disappear) has to be re-sent just as much as one whose number went up.
      */
     void schedulercore$refreshStatusRows();
+
+    /**
+     * The CPU's own job status for the screen's list: the Scheduler Core icon, the aggregate progress over
+     * every order and the oldest order's elapsed time, or null when this CPU holds no scheduled order.
+     *
+     * <p>Asked for by the cluster's {@code getJobStatus()} hook. That hook exists because a row is not a page:
+     * the details pane follows the selected row, while the CPU's own row has to keep describing the machine
+     * even while one of its orders is selected - which is exactly what {@code getFinalJobOutput()} and
+     * {@code getElapsedTimeTracker()} cannot do, since the pane reads those too.
+     */
+    appeng.api.networking.crafting.CraftingJobStatus schedulercore$cpuStatus();
 }

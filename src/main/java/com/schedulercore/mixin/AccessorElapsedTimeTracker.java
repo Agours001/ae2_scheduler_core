@@ -1,6 +1,7 @@
 package com.schedulercore.mixin;
 
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 import appeng.api.stacks.AEKeyType;
@@ -26,4 +27,36 @@ public interface AccessorElapsedTimeTracker {
     /** Mirrors {@code ElapsedTimeTracker.decrementItems(long, AEKeyType)}. */
     @Invoker("decrementItems")
     void schedulercore$decrementItems(long amount, AEKeyType type);
+
+    /** Nanoseconds this tracker has accumulated so far. */
+    @Accessor("elapsedTime")
+    long schedulercore$elapsedTime();
+
+    @Accessor("elapsedTime")
+    void schedulercore$setElapsedTime(long elapsedTime);
+
+    /**
+     * When this tracker last folded the clock into {@code elapsedTime}.
+     *
+     * <p>Needed because {@code getElapsedTime()} is not a field read: while any key type still has work
+     * outstanding it returns {@code elapsedTime + (now - lastTime)}, i.e. it extrapolates to this instant. A
+     * synthetic tracker that only sets {@code elapsedTime} therefore reports elapsedTime plus the time since
+     * the tracker was constructed - double counting, and growing without bound.
+     */
+    @Accessor("lastTime")
+    void schedulercore$setLastTime(long lastTime);
+
+    /**
+     * Work started per key type, in that type's own unit - the denominator of {@code getProgress()}.
+     *
+     * <p>Handed out as the live map rather than copied, because the CPU page's aggregate row needs a tracker
+     * it can keep updating: AE2 keeps progress as a fraction of two amounts, so a synthetic "whole CPU"
+     * tracker has to be filled through these two maps (see {@code schedulercore$reportAggregateTracker}).
+     */
+    @Accessor("startedWorkByType")
+    it.unimi.dsi.fastutil.objects.Reference2LongMap<AEKeyType> schedulercore$startedWorkByType();
+
+    /** Work completed per key type - the numerator of {@code getProgress()}. */
+    @Accessor("completedWorkByType")
+    it.unimi.dsi.fastutil.objects.Reference2LongMap<AEKeyType> schedulercore$completedWorkByType();
 }

@@ -666,18 +666,19 @@ public final class RigMeasure {
             return 1;
         }
 
-        var helper = new appeng.menu.me.common.IncrementalUpdateHelper();
         var out = logic.getFinalJobOutput();
-        if (out != null) {
-            helper.addChange(out.what());
-        }
-        for (var entry : logic.getInventory().list) {
-            helper.addChange(entry.getKey());
-        }
         var waiting = new java.util.HashSet<appeng.api.stacks.AEKey>();
         logic.getAllWaitingFor(waiting);
-        for (var key : waiting) {
-            helper.addChange(key);
+
+        // Seed the helper with exactly what CraftingCPUMenu.setCPU seeds: getAllItems, i.e. the CPU's own
+        // inventory, its waiting-for ledger and its patterns' products (checked against its bytecode). Seeding
+        // the final job output as well used to invent a table row the real screen never draws - and a probe
+        // that shows rows the screen does not is worse than no probe.
+        var helper = new appeng.menu.me.common.IncrementalUpdateHelper();
+        var counter = new appeng.api.stacks.KeyCounter();
+        logic.getAllItems(counter);
+        for (var entry : counter) {
+            helper.addChange(entry.getKey());
         }
 
         var status = appeng.menu.me.crafting.CraftingStatus.create(helper, logic);
@@ -748,6 +749,12 @@ public final class RigMeasure {
                     + " name=\"" + (cpu.getName() == null ? "?" : cpu.getName().getString()) + "\""
                     + " busy=" + cpu.isBusy()
                     + " storage=" + cpu.getAvailableStorage()
+                    // The icon the row draws, i.e. what CraftingJobStatus.crafting() reports: for a scheduler
+                    // CPU this is the Scheduler Core block and nothing else, which is how the CPU's total view
+                    // is told apart from an order's row without opening the screen.
+                    + " what=" + (status == null || status.crafting() == null
+                            ? "none"
+                            : status.crafting().what().getDisplayName().getString())
                     + " job=" + (status == null ? "none" : status.progress() + "/" + status.totalItems());
             source.sendSuccess(() -> Component.literal(line), false);
         }

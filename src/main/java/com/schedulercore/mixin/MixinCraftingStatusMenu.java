@@ -45,6 +45,45 @@ public abstract class MixinCraftingStatusMenu {
     private boolean schedulercore$forwarding;
 
     /**
+     * True while AE2 is picking a CPU by itself, inside {@code broadcastChanges}.
+     *
+     * <p>Not a detail: when nothing is selected the screen selects a CPU on its own - "the first row that has
+     * a job" - and that selection arrives here through the same {@code setCPU} the player's click uses. It has
+     * to be told apart from a click, because clicking the CPU's row means "show me the machine" and drops the
+     * focused order, while an automatic re-selection means nothing of the sort. Treating the two alike made
+     * the machine's row clear the player's page: as soon as this mod gave the CPU's row a job of its own (the
+     * Scheduler Core icon), that row became the first "row with a job", so every automatic re-selection
+     * selected it and silently dropped the focused order - after which every order's page fell back to the
+     * CPU's totals.
+     */
+    @Unique
+    private boolean schedulercore$autoSelecting;
+
+    @Inject(method = "broadcastChanges", at = @At("HEAD"))
+    private void schedulercore$beginAutoSelection(CallbackInfo ci) {
+        schedulercore$autoSelecting = true;
+    }
+
+    @Inject(method = "broadcastChanges", at = @At("RETURN"))
+    private void schedulercore$endAutoSelection(CallbackInfo ci) {
+        schedulercore$autoSelecting = false;
+    }
+
+    /**
+     * Records what the screen is selecting and on whose behalf, so a report about the wrong page being shown
+     * can be answered from the log instead of guessed at. Behind the trace toggle: one line per click is more
+     * than a released mod should write.
+     */
+    @Inject(method = "selectCpu", at = @At("HEAD"))
+    private void schedulercore$logSelection(int serial, CallbackInfo ci) {
+        if (com.schedulercore.scheduler.Trace.enabled()) {
+            com.schedulercore.SchedulerCore.LOG.info(
+                    "[schedulercore] crafting screen selectCpu(serial={}, by={})",
+                    serial, schedulercore$autoSelecting ? "the screen itself" : "the player");
+        }
+    }
+
+    /**
      * The vanilla selection method, called again with the real CPU.
      *
      * <p>Declared as a shadow rather than called directly: it is {@code protected} in AE2's own package, and
@@ -59,15 +98,27 @@ public abstract class MixinCraftingStatusMenu {
         if (schedulercore$forwarding) {
             return; // our own repeated call: leave it to AE2
         }
+        if (com.schedulercore.scheduler.Trace.enabled()) {
+            com.schedulercore.SchedulerCore.LOG.info(
+                    "[schedulercore] crafting screen selects {} (by {})",
+                    cpu instanceof SchedulerJobCpu row ? "order #" + row.slotId() + "'s row"
+                            : cpu instanceof CraftingCPUCluster ? "the CPU's own row" : String.valueOf(cpu),
+                    schedulercore$autoSelecting ? "the screen itself" : "the player");
+        }
         if (!(cpu instanceof SchedulerJobCpu order)) {
-            // A real CPU was selected - i.e. the player went back to the CPU's own page.
+            // A real CPU was selected - the player went back to the CPU's own page, or the screen re-selected
+            // a CPU by itself. See schedulercore$autoSelecting for why the two must not be treated alike.
             //
-            // This case has to be handled too, and leaving it out was a bug: the focus set by a per-order row
-            // would survive, so the CPU's page kept being filtered down to that one order, and which order it
-            // showed depended on which row the player had clicked last. Reported from a real machine as "the
-            // CPU page shows one order at random". Releasing the focus restores the CPU-wide view, which is
-            // what that page means: every order's items, pooled.
+            // Releasing the focus is what makes the CPU's page the machine's page again: without it the focus
+            // set by a per-order row survives, so the CPU's page keeps being filtered down to that one order,
+            // and which order it shows depends on which row was clicked last. Reported from a real machine as
+            // "the CPU page shows one order at random" - and, from the other direction, as "clicking the CPU
+            // row poisons every order's page", which is this same release firing on the screen's own
+            // re-selection.
             if (cpu instanceof CraftingCPUCluster cluster) {
+                if (schedulercore$autoSelecting) {
+                    return; // the screen picking a CPU is not the player choosing a page
+                }
                 var state = MultiJobState.forCluster(cluster);
                 if (state != null && state.focusedSlotId() != SchedulingPolicy.Decision.NONE) {
                     state.releaseFocus();
@@ -85,6 +136,8 @@ public abstract class MixinCraftingStatusMenu {
             var state = MultiJobState.forCluster(cluster);
             if (state == null || state.byId(order.slotId()) == null) {
                 // The order ended between the list being drawn and the click landing. Just show the CPU.
+                com.schedulercore.SchedulerCore.LOG.info(
+                        "[schedulercore] order #{} row was clicked but is gone; showing the CPU", order.slotId());
                 ci.cancel();
                 return;
             }

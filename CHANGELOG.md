@@ -4,6 +4,67 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-09-17
+
+**The CPU's own row is a CPU page, and only that row is.** Reported from a real machine: selecting an order
+made the CPU's own row in the crafting-status list report *that* order's icon, progress and ETA, so the
+machine appeared to have changed what it was doing. That row is now pinned to the machine whatever is
+selected, the details pane still follows the row you selected (an order's page keeps showing that order's
+plan), and the CPU block's suspend button freezes and releases the whole CPU in one press.
+
+### Fixed
+
+- **Switching pages no longer leaves the previous page's rows on screen.** The screen is incremental: a row
+  only changes on the client when the server reports that key as changed. The refresh that runs on a page
+  change was reporting only the newly shown page's keys, so the rows the new page excludes were never re-sent
+  and kept their previous amounts - an order's page appeared to still list the other orders' products. It now
+  reports every order's keys again, which is what it is for.
+- **Clicking the CPU's row no longer strands every order's page on the totals.** AE2 selects a CPU by itself
+  whenever nothing is selected - "the first row that has a job" - and that selection arrives through the same
+  `setCPU` a player's click uses. Giving the CPU's row a job of its own (the Scheduler Core icon) made it that
+  first row, so the screen's own re-selection began selecting it, which this mod read as "the player went back
+  to the machine's page" and answered by dropping the focused order - after which every order's page showed
+  the CPU's totals. The two are now told apart: an automatic re-selection leaves the chosen page alone, and
+  only a click returns to the machine's page.
+- **The CPU's row no longer follows the order you clicked.** `CraftingCPUCluster.getJobStatus()` - what the
+  list row is built from - is itself composed out of `craftingLogic.getFinalJobOutput()` and
+  `getElapsedTimeTracker()`, the same two methods the details pane reads, and those have to follow the
+  selected page. So the row is now answered directly, from the CPU's totals:
+  - the icon is the **Scheduler Core block**, which marks the row as this CPU's total view and says the CPU is
+    scheduler-managed (one order's output would be a lie there, and would change as orders come and go);
+  - progress and ETA are the orders' progress **weighted by how much each order asked for**, and the elapsed
+    time is the oldest order's.
+  - Falling back to the order being served would not have been an answer either: exactly one order runs per
+    tick, so those numbers would change every tick and flicker once per redraw.
+- **The page and the row can no longer contradict each other.** Before, selecting an order also rewrote the
+  machine's own row; now a row is a row and a page is a page. An order's page is unchanged - its own plan in
+  the item table, its own progress and ETA - and with nothing selected the page describes the machine, exactly
+  as vanilla's pooled answer always did.
+
+### Added
+
+- **Suspend the whole CPU in one press.** On a page that describes the machine - the CPU's own row, or the CPU
+  block's screen, which has no order list at all - the suspend button now freezes **every** order, and pressing
+  it again releases them all. With an order's row selected the button still means that one order, exactly as
+  before. The flag is stored per order in the save, so a frozen CPU comes back frozen after a restart.
+
+### Changed
+
+- `/schedulercore uiprobe rows` now prints the icon each row draws, and the probe seeds the item table the way
+  AE2's menu does (`getAllItems`) - the previous seeding invented a table row the real screen never draws.
+
+### Notes
+
+- Two key sets must never follow the page that happens to be shown, and both now say so where they are
+  written: **the save** (`writeToNBT` must write every order, or a save taken while an order is selected loses
+  the rest of the queue) and **the screen refresh** (it must report every order's keys, or the rows a new page
+  excludes are never re-sent and stay on screen with stale amounts). They were both written as "all orders"
+  and were both nearly made page-relative by a blanket edit during 1.0.4's development; the save was caught by
+  a regression test (select an order, save, restart, count the orders).
+- The synthetic tracker behind the machine's numbers has to set **both** of AE2's clock fields, not just the
+  elapsed total: `ElapsedTimeTracker.getElapsedTime()` extrapolates to the present while any work is
+  outstanding, so setting only the total reported the aggregate plus the tracker's own age.
+
 ## [1.0.3] - 2026-09-17
 
 **Fix: on a modpack, the per-order rows could disappear from the crafting status screen, which turned

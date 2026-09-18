@@ -98,6 +98,15 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
     private int schedulercore$dumpGuardRefusals;
 
     /**
+     * The synthetic tracker this CPU's details pane and list row report, or null until one is needed.
+     *
+     * <p>Owned per CPU and refreshed on every read; see {@link #schedulercore$reportTotalsTracker} for why a
+     * tracker has to be built at all rather than reused.
+     */
+    @Unique
+    private appeng.crafting.execution.ElapsedTimeTracker schedulercore$totalsTracker;
+
+    /**
      * Products that have been crafted but not yet handed to the network.
      *
      * <p>They cannot be handed over at the moment they arrive, because that moment is inside a network
@@ -802,6 +811,8 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
                 return;
             }
             var list = new ListTag();
+            // Every order, never the page that happens to be focused: a save that followed the screen would
+            // write one job and silently drop the rest of the queue.
             for (var slot : state.slots()) {
                 var entry = new CompoundTag();
                 entry.putLong("id", slot.id());
@@ -1169,11 +1180,15 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
     }
 
     /**
-     * Points the crafting monitor at the job that is running.
+     * Points the crafting monitor at something it can draw.
      *
-     * <p>Vanilla's {@code updateOutput} can only ever describe one job; the scheduler shows the one that
-     * owns the current time slice, which is exactly the vanilla meaning of the monitor ("what is this CPU
-     * doing"), and clears it when nothing is left.
+     * <p>Vanilla's {@code updateOutput} can only ever describe one job, and a monitor face cannot show a
+     * total anyway, so this shows <b>the first order</b> and how much of it is still owed. That choice is
+     * deliberately stable: following the current time slice would make the face flip between orders every
+     * tick, which on a block face reads as flicker rather than as information.
+     *
+     * <p>The CPU's own row and the details pane answer for the machine instead (they show the Scheduler Core
+     * block and the aggregate progress); this is the one display that still names a single order.
      */
     @Unique
     private void schedulercore$refreshMonitor() {
@@ -1348,6 +1363,10 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
         try {
             var state = schedulercore$state();
             var seen = new java.util.HashSet<AEKey>();
+            // Every order's keys, never just the focused page's: this is what tells the client that a row it
+            // is still drawing has changed. Marking only the page being shown is what made a page switch look
+            // like the previous page never went away - the rows the new page excludes were never re-sent, so
+            // the client kept the last amounts it had for them.
             for (var slot : state.slots()) {
                 schedulercore$collectAndReportOrderKeys(slot, seen);
             }
@@ -1364,8 +1383,53 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
                     schedulercore$postChange(entry.getKey());
                 }
             }
+            if (com.schedulercore.scheduler.Trace.enabled()) {
+                SchedulerCore.LOG.info("[schedulercore] {}", schedulercore$pageDump());
+            }
         } catch (Throwable t) {
             SchedulerCore.LOG.error("[schedulercore] could not refresh the crafting screen", t);
+        }
+    }
+
+    /**
+     * Diagnostic: exactly what the screen is about to be told, key by key, for the page now being shown.
+     *
+     * <p>Added because "an order's page shows another order's rows" cannot be answered from the selection log
+     * alone - that log shows the selection being right, so the question is whether the numbers behind the page
+     * are wrong (this dump) or whether the client is failing to receive them. The three amounts per key are
+     * the three questions AE2's status snapshot asks, in its own order: stored, waiting-for, pending outputs.
+     * The state identity and focus id are printed too, since a focus set on one state and read from another
+     * would look exactly like a filter that half works.
+     *
+     * <p>Gated behind {@code /schedulercore trace on}: one line per key is far too much for normal play.
+     */
+    @Unique
+    private String schedulercore$pageDump() {
+        try {
+            var state = schedulercore$state();
+            var self = (appeng.crafting.execution.CraftingCpuLogic) (Object) this;
+            var focused = state.focusedSlot();
+            var out = new StringBuilder()
+                    .append("page=").append(focused == null ? "the CPU" : "order #" + focused.id())
+                    .append(" focusId=").append(state.focusedSlotId())
+                    .append(" state@").append(Integer.toHexString(System.identityHashCode(state)))
+                    .append(" jobs=").append(state.size());
+            var keys = new java.util.LinkedHashSet<AEKey>();
+            for (var slot : state.slots()) {
+                schedulercore$collectOrderKeys(slot, keys);
+            }
+            for (var entry : schedulercore$inventory().list) {
+                keys.add(entry.getKey());
+            }
+            for (var key : keys) {
+                out.append("  ").append(key.getDisplayName().getString())
+                        .append('=').append(self.getStored(key))
+                        .append('/').append(self.getWaitingFor(key))
+                        .append('/').append(self.getPendingOutputs(key));
+            }
+            return out.toString();
+        } catch (Throwable t) {
+            return "page dump failed: " + t;
         }
     }
 
@@ -1381,154 +1445,14 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
     }
 
     /**
-     * Cancels the scheduler's jobs just before the CPU is taken apart.
-     *
-     * <p>Vanilla's {@code breakCluster} cancels the single job it knows about and then drops the CPU's
-     * inventory on the floor. With the scheduler holding jobs that is wrong twice over: the other jobs keep
-     * their reservations and their materials end up as loose drops instead of going back into the network.
-     * Running first here means vanilla's own drop logic then finds an empty inventory.
-     *
-     * <p>Deliberately does not inspect the multiblock structure (it is already coming apart) and never calls
-     * {@code getUnitBlock()} - that unguarded cast is exactly what crashes during the dismantle window.
-     */
-    @Inject(method = "cancel", at = @At("HEAD"))
-    private void schedulercore$cancelScheduledJobs(CallbackInfo ci) {
-        try {
-            schedulercore$cancelAllJobs();
-        } catch (Throwable t) {
-            SchedulerCore.LOG.error("[schedulercore] cancel-all failed; falling back to vanilla", t);
-        }
-    }
-
-    // ------------------------------------------------------------------ status reporting
-
-    /**
-     * Reports the final output of the job that is actually running, not of vanilla's single job field.
-     *
-     * <p><b>Why this exists.</b> {@code CraftingCPUCluster.getJobStatus()} is built entirely out
-     * of {@code craftingLogic.getFinalJobOutput()} and {@code getElapsedTimeTracker()}, and both of those
-     * vanilla implementations read {@code this.job} - the field the scheduler keeps empty between ticks
-     * precisely so that vanilla's own execution path cannot run behind the scheduler's back. The result was
-     * that a CPU visibly working reported <b>no job at all</b>: the crafting-status screen showed nothing,
-     * and {@code /schedulercore measure}'s sampling failed with "job never started" on a clean rig.
-     *
-     * <p>Reporting the current time-slice owner keeps the screen's vanilla meaning - "what is the CPU doing
-     * it shows the task that owns the current slice"), so this is not a new display - it is the data the
-     * existing display was always meant to get. Nothing here changes what is scheduled; it only answers
-     * questions about it.
-     *
-     * <p>Falls through to vanilla when the scheduler holds nothing, so an ordinary CPU is untouched.
-     */
-    @Inject(method = "getFinalJobOutput", at = @At("HEAD"), cancellable = true)
-    private void schedulercore$reportServedOutput(CallbackInfoReturnable<appeng.api.stacks.GenericStack> cir) {
-        try {
-            var slot = schedulercore$state().currentSlot();
-            if (slot == null) {
-                return; // no scheduled jobs: vanilla's answer (null) is correct
-            }
-            var out = schedulercore$view.finalOutput(slot.job());
-            if (out != null) {
-                cir.setReturnValue(out);
-            }
-        } catch (Throwable t) {
-            SchedulerCore.LOG.error("[schedulercore] could not report the served job's output", t);
-        }
-    }
-
-    /**
-     * Reports the elapsed-time tracker of the job that is actually running.
-     *
-     * <p>The counterpart of {@link #schedulercore$reportServedOutput}: progress, elapsed time and the ETA all
-     * come from here, and vanilla's version returns a fresh, empty tracker whenever its {@code job} field is
-     * unset - which for a scheduler CPU is always.
-     */
-    @Inject(method = "getElapsedTimeTracker", at = @At("HEAD"), cancellable = true)
-    private void schedulercore$reportServedTracker(
-            CallbackInfoReturnable<appeng.crafting.execution.ElapsedTimeTracker> cir) {
-        try {
-            var slot = schedulercore$state().currentSlot();
-            if (slot == null) {
-                return;
-            }
-            var tracker = schedulercore$view.timeTracker(slot.job());
-            if (tracker != null) {
-                cir.setReturnValue(tracker);
-            }
-        } catch (Throwable t) {
-            SchedulerCore.LOG.error("[schedulercore] could not report the served job's tracker", t);
-        }
-    }
-
-    /**
-     * Reports whether the job the screen is showing is suspended.
-     *
-     * <p><b>This one is the difference between suspend working and suspend being a one-way trip.</b> The
-     * crafting-status screen asks the server to toggle: the server evaluates
-     * {@code setJobSuspended(!isJobSuspended())}, and vanilla's {@code isJobSuspended()} is
-     * {@code job != null && job.suspended}. The scheduler leaves that field empty, so it always answered
-     * "not suspended", so every press of the button meant "suspend" and the order could never be resumed -
-     * reported from a real machine as "挂起成功，但挂起后无法恢复".
-     *
-     * <p>Answering for {@link MultiJobState#currentSlot()} rather than for the slice owner matters too: a
-     * suspended job stops being the owner, and if the answer moved to a different job the button would come
-     * back describing that one instead.
-     */
-    @Inject(method = "isJobSuspended", at = @At("HEAD"), cancellable = true)
-    private void schedulercore$reportServedSuspension(CallbackInfoReturnable<Boolean> cir) {
-        try {
-            var slot = schedulercore$state().currentSlot();
-            if (slot != null) {
-                cir.setReturnValue(schedulercore$view.suspended(slot.job()));
-            }
-        } catch (Throwable t) {
-            SchedulerCore.LOG.error("[schedulercore] could not report the served job's suspension", t);
-        }
-    }
-
-    /**
-     * Reports how much of {@code template} the CPU is storing <b>for the order being shown</b>.
-     *
-     * <p><b>Why this one needs filtering rather than summing.</b> The CPU's inventory is shared by every
-     * order, so {@code getStored} answers with the pooled amount - which is right for the CPU's own page
-     * ("what is this machine holding") but wrong for a single order's page, where it made every order's page
-     * list every order's ingredients. Reported from a real machine as "the plan is per-order now, but the
-     * consumables still show all orders".
-     *
-     * <p>The honest limitation, stated rather than hidden: the amount is the shared pool, not a per-order
-     * share of it. Nothing can attribute items to an order without giving each order its own inventory
-     * but the pool cannot say which order a given item belongs to, so what this decides is <i>which</i> rows a given order's page may show: the
-     * items that order actually produces, expects or consumes. When two orders need the same ingredient both
-     * pages show the pooled number.
-     */
-    @Inject(method = "getStored", at = @At("HEAD"), cancellable = true)
-    private void schedulercore$reportStoredForFocusedOrder(AEKey template, CallbackInfoReturnable<Long> cir) {
-        try {
-            var state = schedulercore$state();
-            var focused = state.focusedSlot();
-            if (focused == null) {
-                return; // no order selected: the CPU-wide view is exactly vanilla's shared-inventory answer
-            }
-            if (!schedulercore$orderKeys(focused).contains(template)) {
-                cir.setReturnValue(0L); // not this order's business: its page must not show this row
-            }
-        } catch (Throwable t) {
-            SchedulerCore.LOG.error("[schedulercore] could not scope the stored amounts to an order", t);
-        }
-    }
-
-    /**
      * Every key one order is involved with: what it produces, what it expects, and what its patterns consume.
      *
      * <p>Inputs come from the pattern definitions rather than from the inventory, because that is what makes
      * the set stable: an ingredient whose stock has run out is still this order's ingredient.
+     *
+     * <p>Used by the screen refresh, which has to re-send a row for every key whose reported amount can have
+     * changed - including the keys of an order that has just ended, whose product is in no live list any more.
      */
-    @Unique
-    private java.util.Set<AEKey> schedulercore$orderKeys(MultiJobState.Slot slot) {
-        var keys = new java.util.HashSet<AEKey>();
-        schedulercore$collectOrderKeys(slot, keys);
-        return keys;
-    }
-
     @Unique
     private void schedulercore$collectOrderKeys(MultiJobState.Slot slot, java.util.Set<AEKey> into) {
         try {
@@ -1561,6 +1485,239 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
     }
 
     /**
+     * Cancels the scheduler's jobs just before the CPU is taken apart.
+     *
+     * <p>Vanilla's {@code breakCluster} cancels the single job it knows about and then drops the CPU's
+     * inventory on the floor. With the scheduler holding jobs that is wrong twice over: the other jobs keep
+     * their reservations and their materials end up as loose drops instead of going back into the network.
+     * Running first here means vanilla's own drop logic then finds an empty inventory.
+     *
+     * <p>Deliberately does not inspect the multiblock structure (it is already coming apart) and never calls
+     * {@code getUnitBlock()} - that unguarded cast is exactly what crashes during the dismantle window.
+     */
+    @Inject(method = "cancel", at = @At("HEAD"))
+    private void schedulercore$cancelScheduledJobs(CallbackInfo ci) {
+        try {
+            schedulercore$cancelAllJobs();
+        } catch (Throwable t) {
+            SchedulerCore.LOG.error("[schedulercore] cancel-all failed; falling back to vanilla", t);
+        }
+    }
+
+    // ------------------------------------------------------------------ status reporting
+
+    /**
+     * Reports what the page's subject produces: the selected order's output, or - on the machine's page - the
+     * Scheduler Core block.
+     *
+     * <p><b>Why this exists at all.</b> Vanilla builds its answer out of {@code this.job}, the field the
+     * scheduler keeps empty between ticks precisely so that vanilla's own execution path cannot run behind
+     * the scheduler's back. The result was that a CPU visibly working reported <b>no job at all</b>: the
+     * crafting-status screen showed nothing, and {@code /schedulercore measure}'s sampling failed with "job
+     * never started" on a clean rig.
+     *
+     * <p><b>Two subjects, one method.</b> With an order selected the page is that order's, so it reports that
+     * order's output. With nothing selected the page describes the machine, and the machine's icon is the
+     * Scheduler Core block: an order's output would be a lie there (the CPU is not working on one order), and
+     * it would change as orders came and went. Note that the CPU's own row in the list does <b>not</b> come
+     * through here - {@code CraftingCPUCluster.getJobStatus()} is answered directly - so that row stays the
+     * machine's page even while an order is selected.
+     *
+     * <p>Falls through to vanilla when the scheduler holds nothing, so an ordinary CPU is untouched.
+     */
+    @Inject(method = "getFinalJobOutput", at = @At("HEAD"), cancellable = true)
+    private void schedulercore$reportPageSubject(CallbackInfoReturnable<appeng.api.stacks.GenericStack> cir) {
+        try {
+            var state = schedulercore$state();
+            var focused = state.focusedSlot();
+            if (focused != null) {
+                var out = schedulercore$view.finalOutput(focused.job());
+                if (out != null) {
+                    cir.setReturnValue(out);
+                }
+                return;
+            }
+            if (!state.isEmpty()) {
+                cir.setReturnValue(schedulercore$coreIcon());
+            }
+        } catch (Throwable t) {
+            SchedulerCore.LOG.error("[schedulercore] could not report the page's output", t);
+        }
+    }
+
+    /** The Scheduler Core block, as the icon a scheduler-managed CPU draws for itself. */
+    @Unique
+    private static appeng.api.stacks.GenericStack schedulercore$coreIcon() {
+        return new appeng.api.stacks.GenericStack(
+                appeng.api.stacks.AEItemKey.of(SchedulerCore.SCHEDULER_CORE_BLOCK_ITEM.get()), 1);
+    }
+
+    /**
+     * Reports the tracker behind the page's numbers: the selected order's, or - on the machine's page - a
+     * synthetic tracker carrying the CPU's totals (see {@link #schedulercore$reportTotalsTracker}).
+     *
+     * <p><b>Why a synthetic tracker is needed at all.</b> AE2's tracker is fraction-based:
+     * {@code getStartItemCount()} is the fixed 2^31-1 scale, {@code getProgress()} is
+     * {@code Σ completedWork / Σ startedWork} over the key types in that type's own unit, and
+     * {@code getRemainingItemCount()} is derived from the scale and that fraction. So a "whole CPU" tracker is
+     * one whose two maps hold the CPU's weighted progress as a single item-type figure - the numbers
+     * themselves come from {@code MultiJobState.totals()}, which is also where the weighting is explained.
+     *
+     * <p>One tracker per CPU, refreshed on every read: it is never handed to the execution path (only to
+     * status reporting), so nothing else can mutate it behind our back.
+     */
+    @Inject(method = "getElapsedTimeTracker", at = @At("HEAD"), cancellable = true)
+    private void schedulercore$reportTotalsTracker(
+            CallbackInfoReturnable<appeng.crafting.execution.ElapsedTimeTracker> cir) {
+        try {
+            var state = schedulercore$state();
+            var focused = state.focusedSlot();
+            if (focused != null) {
+                var tracker = schedulercore$view.timeTracker(focused.job());
+                if (tracker != null) {
+                    cir.setReturnValue(tracker);
+                }
+                return;
+            }
+            var totals = schedulercore$totalsTracker(state);
+            if (totals != null) {
+                cir.setReturnValue(totals);
+            }
+        } catch (Throwable t) {
+            SchedulerCore.LOG.error("[schedulercore] could not report the page's tracker", t);
+        }
+    }
+
+    /**
+     * This CPU's aggregate tracker, refreshed from {@code state.totals()}, or null when it holds no orders.
+     *
+     * <p>Shared by the machine's page and by the CPU's own row, so both report the same numbers.
+     */
+    @Unique
+    private appeng.crafting.execution.ElapsedTimeTracker schedulercore$totalsTracker(MultiJobState state) {
+        var totals = state.isEmpty() ? null : state.totals();
+        if (totals == null) {
+            return null;
+        }
+        var tracker = schedulercore$totalsTracker;
+        if (tracker == null) {
+            tracker = new appeng.crafting.execution.ElapsedTimeTracker();
+            schedulercore$totalsTracker = tracker;
+        }
+        var access = (AccessorElapsedTimeTracker) (Object) tracker;
+        access.schedulercore$setElapsedTime(totals.elapsedNanos());
+        // Both clock fields, not just the elapsed total: getElapsedTime() extrapolates to this instant while
+        // any work is outstanding (completedWorkByType < startedWorkByType), so leaving lastTime at the
+        // tracker's construction time would report the aggregate plus its own age.
+        access.schedulercore$setLastTime(System.nanoTime());
+        // Any positive denominator does: only the ratio between the two maps is readable, and 1e6 keeps the
+        // rounding of the numerator below one part in a million of the progress bar.
+        final long scale = 1_000_000L;
+        access.schedulercore$startedWorkByType().put(appeng.api.stacks.AEKeyType.items(), scale);
+        access.schedulercore$completedWorkByType().put(appeng.api.stacks.AEKeyType.items(),
+                Math.round(scale * totals.progress()));
+        return tracker;
+    }
+
+    /**
+     * The machine's job status, for the CPU's own row in the list: Scheduler Core icon, aggregate progress,
+     * the oldest order's elapsed time.
+     *
+     * <p>Answered here rather than derived from {@link #schedulercore$reportPageSubject} on purpose: a row is
+     * not a page. The pane follows the selected row, so its numbers follow the selection; the CPU's row must
+     * not, or selecting an order would make the machine's row claim to be that order.
+     */
+    @Override
+    public appeng.api.networking.crafting.CraftingJobStatus schedulercore$cpuStatus() {
+        var state = schedulercore$state();
+        var tracker = schedulercore$totalsTracker(state);
+        if (tracker == null) {
+            return null;
+        }
+        long start = tracker.getStartItemCount();
+        long remaining = tracker.getRemainingItemCount();
+        return new appeng.api.networking.crafting.CraftingJobStatus(
+                schedulercore$coreIcon(), start, Math.max(0, start - remaining), tracker.getElapsedTime());
+    }
+
+    /**
+     * Reports whether the job the screen is showing is suspended.
+     *
+     * <p><b>This one is the difference between suspend working and suspend being a one-way trip.</b> The
+     * crafting-status screen asks the server to toggle: the server evaluates
+     * {@code setJobSuspended(!isJobSuspended())}, and vanilla's {@code isJobSuspended()} is
+     * {@code job != null && job.suspended}. The scheduler leaves that field empty, so it always answered
+     * "not suspended", so every press of the button meant "suspend" and the order could never be resumed -
+     * reported from a real machine as "挂起成功，但挂起后无法恢复".
+     *
+     * <p><b>Which subject, and why it is not {@code currentSlot()}.</b> The button belongs to a page: an
+     * order's row puts that order in focus and the button then means that order, while the CPU's own row (and
+     * the CPU block's own screen, which has no list) has no order in focus and the button then means the
+     * machine - "every order on this CPU". Reading the current slice owner instead would make the CPU page's
+     * button act on whichever order happened to be served this tick, which is not something the page can
+     * explain to the player.
+     *
+     * <p>Answering for the focus rather than for the slice owner matters in the per-order case for the same
+     * reason it always did: a suspended job stops being the owner, so an answer that followed the owner would
+     * come back describing a different order and the button could never be pressed twice.
+     */
+    @Inject(method = "isJobSuspended", at = @At("HEAD"), cancellable = true)
+    private void schedulercore$reportSuspension(CallbackInfoReturnable<Boolean> cir) {
+        try {
+            var state = schedulercore$state();
+            var focused = state.focusedSlot();
+            if (focused != null) {
+                cir.setReturnValue(schedulercore$view.suspended(focused.job()));
+            } else if (!state.isEmpty()) {
+                cir.setReturnValue(state.allSuspended());
+            }
+        } catch (Throwable t) {
+            SchedulerCore.LOG.error("[schedulercore] could not report suspension", t);
+        }
+    }
+
+    /**
+     * Reports how much of {@code template} the CPU is storing <b>for the order being shown</b>.
+     *
+     * <p>With no order selected the page describes the machine, and the pooled amount is the right answer -
+     * that is vanilla's own.
+     *
+     * <p><b>Why the selected case needs filtering rather than summing.</b> The CPU's inventory is shared by
+     * every order, so {@code getStored} answers with the pooled amount, which on a single order's page made
+     * it list every order's ingredients. Reported from a real machine as "the plan is per-order now, but the
+     * consumables still show all orders" - and reported again, from the other side, when 1.0.4 first dropped
+     * this filtering altogether: "the order's page shows the totals". So what this decides is <i>which</i>
+     * rows an order's page may show: the items that order actually produces, expects or consumes.
+     *
+     * <p>The honest limitation, stated rather than hidden: the amount remains the shared pool, not a per-order
+     * share of it. Nothing can attribute items to an order without giving each order its own inventory, so
+     * when two orders need the same ingredient both pages show the pooled number.
+     */
+    @Inject(method = "getStored", at = @At("HEAD"), cancellable = true)
+    private void schedulercore$reportStoredForFocusedOrder(AEKey template, CallbackInfoReturnable<Long> cir) {
+        try {
+            var state = schedulercore$state();
+            var focused = state.focusedSlot();
+            if (focused == null) {
+                return; // the machine's page: vanilla's shared-inventory answer is the right one
+            }
+            if (!schedulercore$orderKeys(focused).contains(template)) {
+                cir.setReturnValue(0L); // not this order's business: its page must not show this row
+            }
+        } catch (Throwable t) {
+            SchedulerCore.LOG.error("[schedulercore] could not scope the stored amounts to an order", t);
+        }
+    }
+
+    /** Every key one order is involved with, for scoping its page's item table. */
+    @Unique
+    private java.util.Set<AEKey> schedulercore$orderKeys(MultiJobState.Slot slot) {
+        var keys = new java.util.HashSet<AEKey>();
+        schedulercore$collectOrderKeys(slot, keys);
+        return keys;
+    }
+
+    /**
      * Reports what the CPU is waiting for <b>in total</b>, summed over every scheduled order.
      *
      * <p>Vanilla reads its single job's ledger. Reporting only the displayed job (the first version of this
@@ -1569,9 +1726,9 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
      * inventory is shared between all its orders and {@code getStored} has always reported it as one pool, so
      * summing the ledgers is the same kind of statement - and the only one that is true of the machine.
      *
-     * <p>The job in the screen's header stays a single job (see {@link #schedulercore$reportServedOutput}):
-     * the header answers "what is this CPU doing now", which is one order, while the table
-     * answers "what is this CPU holding", which is all of them.
+     * <p>These columns follow the page: with an order selected they are that order's plan, and with nothing
+     * selected they are the machine's totals. The CPU's own row in the list is the exception - it always
+     * reports the machine (see {@code MultiJobState.totals()}).
      */
     @Inject(method = "getWaitingFor", at = @At("HEAD"), cancellable = true)
     private void schedulercore$reportServedWaitingFor(AEKey template, CallbackInfoReturnable<Long> cir) {
@@ -1643,17 +1800,24 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
     }
 
     /**
-     * Makes the crafting screen's suspend action affect the job that is currently owning the CPU.
+     * Makes the crafting screen's suspend action affect the page it was pressed on: one order, or the CPU.
      *
      * <p>Vanilla's {@code setJobSuspended} writes the single-job field, which the scheduler leaves empty
-     * between ticks - so on a real machine the button did nothing at all. Suspending the current slice
-     * owner is the behaviour the requirements settled on.
+     * between ticks - so on a real machine the button did nothing at all.
      *
-     * <p>A suspended job is reported as BLOCKED by the rotation, so the CPU immediately moves on to the
-     * next job instead of stalling.
+     * <p><b>Which subject.</b> With an order in focus the button means that order, exactly as before. With no
+     * order in focus - the CPU's own row, or the CPU block's own screen, which has no list at all - the button
+     * means <b>every order on this CPU</b>, so the machine can be frozen and released in one press. That is
+     * the only sane reading of a button on a page that describes the machine, and it pairs with
+     * {@link #schedulercore$reportSuspension}, which reports "all of them" for the same case; the two have to
+     * agree or the button's next press would go the wrong way.
+     *
+     * <p>A suspended job is reported as BLOCKED by the rotation, so a per-order suspend makes the CPU move on
+     * to the next order instead of stalling, and suspending all of them simply leaves nothing to serve - a
+     * state the rotation already handles (and a test already covers).
      */
     @Inject(method = "setJobSuspended", at = @At("TAIL"))
-    private void schedulercore$applySuspensionToOwner(boolean suspended, CallbackInfo ci) {
+    private void schedulercore$applySuspension(boolean suspended, CallbackInfo ci) {
         try {
             var state = schedulercore$state();
             if (state.isEmpty()) {
@@ -1662,14 +1826,15 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
             // Target the job the screen is describing, not "whoever owns the current slice". Those differ
             // exactly when it matters: suspending a job takes it out of the rotation, so the owner becomes a
             // different job (or nobody) immediately after, and the screen keeps describing the job that was
-            // just suspended (see MultiJobState.currentSlot). Acting on the owner here would suspend/resume
-            // an order the player is not looking at.
-            var slot = state.currentSlot();
-            if (slot == null) {
+            // just suspended.
+            var focused = state.focusedSlot();
+            if (focused != null) {
+                schedulercore$view.setSuspended(focused.job(), suspended);
+                SchedulerCore.LOG.info("[schedulercore] job #{} suspended={}", focused.id(), suspended);
                 return;
             }
-            schedulercore$view.setSuspended(slot.job(), suspended);
-            SchedulerCore.LOG.info("[schedulercore] job #{} suspended={}", slot.id(), suspended);
+            state.setAllSuspended(suspended);
+            SchedulerCore.LOG.info("[schedulercore] all {} job(s) suspended={}", state.size(), suspended);
         } catch (Throwable t) {
             SchedulerCore.LOG.error("[schedulercore] could not change suspension", t);
         }

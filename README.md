@@ -56,8 +56,10 @@ Splitting the per-tick budget between jobs as tokens is explicitly forbidden her
 
 - **Multi-job admission** — a CPU that is busy can still accept another order, as long as the storage ledger has room for its plan.
 - **Per-order rows in the crafting status screen** — every order gets its own clickable row with its own name, progress and ETA.
+- **Two kinds of page, and they stay apart** — an order's row is that order's page; the CPU's own row is the *machine's* page, whose icon is the Scheduler Core block and whose progress is the total across all orders. Selecting an order never changes what the CPU's page reports.
 - **Per-order cancel** — cancel just the order you selected; its unused materials go back to the network.
 - **Per-order suspend / resume** — suspend is a real toggle, not a one-way trip.
+- **Freeze the whole CPU in one press** — on the CPU's own page (its row, or the CPU block's screen) the suspend button acts on every order at once, and the state is saved with them: a frozen CPU comes back frozen.
 - **Correct item routing** — returns are credited to the order that is actually waiting for them, even when several orders are in flight.
 - **Per-order persistence** — every order is saved and restored individually; a restart does not lose the queue.
 - **Stuck-job repair** — recovers a save whose CPU is permanently busy because of an untracked job.
@@ -120,7 +122,7 @@ Everything else keeps running vanilla code. While an order is being served, the 
 
 ### Per-order rows, and the CPU set they share
 
-Every row of the crafting status screen **is** an `ICraftingCPU`: the menu iterates `ICraftingService.getCpus()`, assigns row serials by object identity, and hands that same object back when a row is clicked. There is no other way for a server to add a row, so each order gets a thin adapter of its own (`SchedulerJobCpu`), and clicking that adapter's row sets the focus that the details pane, the suspend button and the cancel button all read.
+Every row of the crafting status screen **is** an `ICraftingCPU`: the menu iterates `ICraftingService.getCpus()`, assigns row serials by object identity, and hands that same object back when a row is clicked. There is no other way for a server to add a row, so each order gets a thin adapter of its own (`SchedulerJobCpu`), and clicking that adapter's row sets the focus that the suspend and cancel buttons read — one order's page. The CPU's own row is a different subject entirely: it is the machine, and [what it reports](#what-the-cpus-own-row-reports) is the machine's.
 
 That makes `getCpus()` shared ground, and on a modpack more than one addon contributes to it. `CraftingService.getCpus()` ends in `ImmutableSet.builder()...build()`, and an addon that adds its own CPUs typically does so by re-building **that same builder** at `RETURN` — AdvancedAE, for instance:
 
@@ -138,6 +140,23 @@ cir.setReturnValue(builder.build());
 An implementation that reads the finished set and returns a *new* one therefore does not compose: whoever runs last wins, and the other side's entries vanish with no error anywhere. That is what happened on a real pack — the screen listed the CPU and no orders at all, so no row could be clicked, the focus was never set, and every per-order action fell back to "whichever order the CPU is serving". It surfaced as three unrelated-looking bugs ("only one CPU row", "resume only affects the last order", "cancel cancels everything").
 
 So the rows are added **into AE2's builder** instead of into a set of our own, by wrapping the `build()` call (`@WrapOperation`, which composes with other wrappers where `@Redirect` would be a hard conflict). Anything that re-builds that builder afterwards picks them up, and the result no longer depends on mixin ordering. Verified against AdvancedAE 1.6.12 in a development instance: with the previous approach the order rows were absent, with this one all four entries are present.
+
+### What the CPU's own row reports
+
+The CPU's row in the list describes **the machine**, and it is the only row that is pinned that way:
+
+| | |
+|---|---|
+| Icon | the **Scheduler Core block** — it marks the row as this CPU's total view, and states that the CPU is scheduler-managed. One order's output would be a lie (the machine is not working on one order) and would change as orders come and go. |
+| Progress / ETA | the orders' progress **weighted by how much each order asked for**: AE2 keeps progress as a fraction, so the weight is what makes a large order move the bar more than a small one. Elapsed time is the oldest order's. |
+
+Everything else follows the row you selected, because everything else is a **page**: an order's row is that order's page (its own plan in the item table, its own waiting-for and pending columns, its own progress and ETA), and with nothing selected the page describes the machine — the CPU's shared inventory and its totals, which is vanilla's own pooled answer.
+
+Two rules the CPU's row deliberately avoids, both of which were real behaviour before 1.0.4: following the **focused** order (the machine's row reported whichever order you last clicked), and following the **order being served** (which changes every tick, so the numbers would flicker once per redraw). The aggregate is the only stable statement about the machine — and a row is not a page, so it must not follow the selection the way a page does.
+
+### One button, two subjects
+
+The suspend button asks which page it is on. With an order's row selected it toggles that order; on the CPU's own page — its row, or the CPU block's own screen, which has no list at all — it toggles **every order on the CPU**, so the machine can be frozen and released in one press. The saved state is per order (`ExecutingCraftingJob.suspended`, written by AE2's own serialiser), so a frozen CPU is still frozen after a restart. Note what freezing does *not* do: admission is untouched, so a new order submitted to a frozen CPU is accepted and starts running — "suspend all" stops the orders that exist, it is not a master switch on the machine.
 
 The scheduling decision itself is pure logic with no Minecraft or AE2 dependency (that is what makes the L1 test suite possible):
 
@@ -218,22 +237,22 @@ Other intentional seams:
 | Command | Purpose |
 |---|---|
 | `/schedulercore uiprobe` | Print the rows the screen actually receives, plus which order is focused |
-| `/schedulercore uiprobe rows` | Print `ICraftingService.getCpus()` verbatim (can a per-order row reach the screen at all?) |
+| `/schedulercore uiprobe rows` | Print `ICraftingService.getCpus()` verbatim, including the icon each row draws (can a per-order row reach the screen at all, and is the CPU's row showing the core block with the total progress?) |
 | `/schedulercore uiprobe focus <id>` / `release` | What clicking an order's row / returning to the CPU page does |
 | `/schedulercore uiprobe cancel` | What the cancel button does (one order if focused, all otherwise) |
-| `/schedulercore uiprobe toggle [vanilla]` | What the suspend button does, printing before/after state |
+| `/schedulercore uiprobe toggle [vanilla]` | What the suspend button does — one order when a row is focused, every order when it is not — printing before/after state |
 
 ## Known limitations
 
 Stated plainly, because they are real and a user will hit some of them:
 
 1. **A cancelled order's materials are returned only when no other order can use them.** The CPU's ingredient pool is shared, and AE2 keeps no per-order record of what belongs to whom, so a key that several orders use is left alone until the CPU is empty. Consequence: cancel one of two orders that share an ingredient, and you will still see that ingredient in the CPU's item table until the last order finishes. Giving each order its own inventory would fix it properly and is not implemented.
-2. **The item table is a per-CPU view.** The amounts it shows are the shared pool, not a per-order share.
+2. **A shared ingredient's amount is the CPU's total, not a per-order share.** An order's page hides rows that belong to other orders, but an amount it does show is the pool's — AE2 keeps no per-order record of what belongs to whom.
 3. **Releasing only happens on cancel.** An order that finishes normally and leaves material behind is cleaned up when the CPU goes idle, as in vanilla.
 4. **Removing any block of a CPU that contains a Scheduler Core** makes AE2 itself throw `IllegalStateException: The node has already been initialized`, which aborts the removal. This happens inside AE2's own teardown; the orders are cancelled and the materials returned before it. Not fixed.
 5. **Config reload requires a restart.**
 6. **Slow machines (cycle > 20 ticks) could not be reproduced on the test rig**; that case is covered by simulation only.
-7. **Per-order control lives in the crafting status screen, not in the CPU block's own screen.** The block's screen (right-clicking a crafting CPU) has no CPU list at all — that is AE2's layout, and adding one would mean writing GUI code. What it does have is the suspend and cancel buttons, and with no row to select there is no focus, so they act on the CPU as a whole: **suspend** toggles the order currently being served, **cancel** cancels every order on that CPU. For per-order suspend/resume/cancel and for the per-order rows, open the **Status** tab of a crafting terminal.
+7. **Per-order rows only exist in the crafting status screen.** The CPU block's own screen (right-clicking a crafting CPU) has no CPU list at all — that is AE2's layout, and adding one would mean writing GUI code. Its two buttons therefore act on the machine: **suspend** freezes or releases *every* order on that CPU, and **cancel** cancels every order on it. For one order's controls, select its row in the **Status** tab of a crafting terminal.
 
 ## License & credits
 

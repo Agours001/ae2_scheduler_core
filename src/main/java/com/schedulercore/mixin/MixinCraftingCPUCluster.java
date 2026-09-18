@@ -58,6 +58,38 @@ public abstract class MixinCraftingCPUCluster {
     }
 
     /**
+     * Makes the CPU's own row in the crafting-status list describe <b>the machine</b>, always.
+     *
+     * <p>AE2 builds that row out of {@code cluster.getJobStatus()}, which is itself built out of
+     * {@code craftingLogic.getFinalJobOutput()} and {@code getElapsedTimeTracker()} - the two methods the
+     * details pane also reads, and which therefore follow the row the player selected. That is right for the
+     * pane and wrong for this row: with an order selected, the CPU's row reported <i>that order's</i> icon,
+     * progress and ETA, so the machine appeared to have quietly changed what it was doing. Reported from a
+     * real machine as "the CPU row follows the order I clicked".
+     *
+     * <p>So the row is answered directly instead, from the logic's aggregate: the Scheduler Core icon, the
+     * progress of every order weighted by how much each asked for, and the oldest order's elapsed time. A row
+     * is not a page, and this is the one row that must not follow the selection.
+     */
+    @Inject(method = "getJobStatus", at = @At("RETURN"), cancellable = true)
+    private void schedulercore$reportCpuTotalsInList(
+            CallbackInfoReturnable<appeng.api.networking.crafting.CraftingJobStatus> cir) {
+        try {
+            var self = (CraftingCPUCluster) (Object) this;
+            var state = MultiJobState.forCluster(self);
+            if (state == null || state.isEmpty()) {
+                return; // no scheduler involvement: vanilla's answer stands
+            }
+            var status = ((SchedulerScreenBridge) (Object) self.craftingLogic).schedulercore$cpuStatus();
+            if (status != null) {
+                cir.setReturnValue(status);
+            }
+        } catch (Throwable t) {
+            // A status query must never take the server down; vanilla's answer stands.
+        }
+    }
+
+    /**
      * Makes the screen's cancel button cancel <b>the order it is showing</b> when one has been selected.
      *
      * <p>Vanilla's button ends in {@code CraftingCpuLogic.cancel()}, which the scheduler already hooks - and

@@ -337,15 +337,89 @@ public final class MultiJobState {
     }
 
     /**
-     * The orders the CPU's item table should be built from.
+     * The orders the CPU's item table and its two amount columns should be built from.
      *
-     * <p>With an order in focus: just that one, so the table belongs to the order the player selected.
-     * Without a focus: all of them, because the table is a per-CPU view - the inventory it reports on is
-     * shared, and reporting a single order made the screen highlight one recipe and show zero for the rest.
+     * <p>With an order in focus: just that one, so an order's page shows that order's plan - what it still
+     * expects and what it has already produced - rather than the whole machine's.
+     *
+     * <p>Without a focus: all of them, because then the page describes the machine, and the inventory it
+     * reports on is shared. Reporting a single order there made the screen highlight one recipe and show zero
+     * for the rest.
+     *
+     * <p>This is the same focus the suspend and cancel buttons read, and that is the point: a page is
+     * selected by clicking a row, and everything the page says follows that selection. What does <b>not</b>
+     * follow it is the CPU's own row in the list - see {@code MultiJobState.totals()}.
      */
     public List<Slot> tableSlots() {
         var focused = focusedSlot();
         return focused != null ? List.of(focused) : List.copyOf(slots);
+    }
+
+    /**
+     * What this <b>CPU as a whole</b> has done: the numbers behind the CPU's own row in the
+     * crafting-status list.
+     *
+     * <h2>Why the CPU's row must not follow the selection</h2>
+     *
+     * <p>It used to be answered by {@link #currentSlot()}, i.e. by the focused order, so selecting an order
+     * row made the machine's own row report <i>that</i> order's icon, progress and ETA - which reads as the
+     * CPU having quietly changed what it is doing, and was reported from a real machine as exactly that.
+     * The CPU's row is the machine's page and belongs to the machine, whatever row is selected.
+     *
+     * <h2>Why the focus cannot simply be dropped either</h2>
+     *
+     * <p>Falling back to the current slice owner is not an answer: exactly one order is served per tick, so
+     * the owner changes every tick and the row would flicker between orders once per redraw. The two numbers
+     * below are the only <i>stable</i> statement available about the machine.
+     *
+     * <p>Progress is the orders' progress weighted by how much each order asked for - AE2 keeps progress as a
+     * fraction, so the weight is what makes a large order move the bar more than a small one. Elapsed time is
+     * the oldest order's, the closest thing to "how long until this CPU is free".
+     */
+    public Totals totals() {
+        double weighted = 0;
+        double weight = 0;
+        long elapsed = 0;
+        for (Slot slot : slots) {
+            var tracker = view.timeTracker(slot.job);
+            if (tracker == null) {
+                continue;
+            }
+            long slotWeight = Math.max(1, slot.totalAmount);
+            weighted += tracker.getProgress() * slotWeight;
+            weight += slotWeight;
+            elapsed = Math.max(elapsed, tracker.getElapsedTime());
+        }
+        return weight == 0 ? null : new Totals((float) (weighted / weight), elapsed);
+    }
+
+    /** The CPU's aggregate progress (0..1) and elapsed time, as {@link #totals()} reports them. */
+    public record Totals(float progress, long elapsedNanos) {
+    }
+
+    /**
+     * Whether every order on this CPU is suspended - what the CPU page's suspend button reads and writes.
+     *
+     * <p>Answered over all of them, because a page describing the machine should offer a control that acts on
+     * the machine. Per-order suspension is still what a selected order row gives (see {@link #currentSlot()}).
+     */
+    public boolean allSuspended() {
+        if (slots.isEmpty()) {
+            return false;
+        }
+        for (Slot slot : slots) {
+            if (!view.suspended(slot.job)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Suspends or resumes every order at once: the CPU page's button, as opposed to an order row's. */
+    public void setAllSuspended(boolean suspended) {
+        for (Slot slot : slots) {
+            view.setSuspended(slot.job, suspended);
+        }
     }
 
     public SchedulingPolicy policy() {
