@@ -964,17 +964,27 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
      *       machine is working for this job. Report {@link SchedulingPolicy.Refusal#TRANSIENT}: the owner
      *       waits, exactly as a vanilla CPU retries every tick. This is what lets an order on a slow
      *       machine keep its turn until that machine frees up.</li>
-     *   <li><b>No</b> provider is registered for any remaining pattern, <b>or</b> a provider is free and
-     *       still refused → waiting on the CPU cannot help. Report
-     *       {@link SchedulingPolicy.Refusal#FUTILE}: the slice ends at once. A provider only refuses while
-     *       it has a push in flight, so a <i>free</i> one that still refuses means the refusal came from
-     *       this job's own inputs, not from the machine - and a job whose machine can never take work must
-     *       not cost the other orders their throughput.</li>
+     *   <li><b>No</b> provider is registered for any remaining pattern → waiting on the CPU cannot help.
+     *       Report {@link SchedulingPolicy.Refusal#FUTILE}: the slice ends at once, because a job whose
+     *       machine can never take work must not cost the other orders their throughput.</li>
      *   <li>No budget this tick → the machine was never asked, so nothing can be concluded. Report
      *       {@link SchedulingPolicy.Refusal#TRANSIENT}; the budget window rolls on every tick, so the
      *       owner will be able to push within a few ticks. Reporting FUTILE here would hand the CPU away
      *       for a throttle that affects every job equally.</li>
      * </ul>
+     *
+     * <p><b>What this deliberately no longer concludes.</b> It used to answer FUTILE as well whenever a
+     * provider reported {@code !isBusy()}, on the theory that "a provider only refuses while it has a push in
+     * flight, so a free one that refuses must be refusing because of this job's own inputs". That theory is
+     * wrong, and it starved orders on a real machine: the provider here is the <i>pattern provider</i>, and
+     * {@code isBusy()} says nothing about the machinery behind it. A molecular assembler whose internal queue
+     * is full refuses the pattern while the provider in front of it is perfectly idle - so a job sharing a CPU
+     * with a busier order was classified FUTILE every single turn, its slice ended at once, and the other
+     * order's once-per-two-ticks pushes kept the machine's queue topped up for ever. Measured: 346 consecutive
+     * FUTILE turns for one order while the other advanced, and the stuck order's {@code waitingFor} ledger
+     * stayed at zero because it never got a pattern in; cancelling the other order resumed it immediately.
+     * A registered provider is therefore a reason to wait, and only "no provider at all" is proof of a dead
+     * end. The hold cap still bounds how long a job may keep the CPU while retrying.
      *
      * <p><b>Insufficient power is not probed separately on purpose.</b> It would need the pattern's inputs
      * extracted first ({@code CraftingCpuHelper.calculatePatternPower}), and it is not a reason to yield
@@ -997,9 +1007,6 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
                 var details = (IPatternDetails) entry.getKey();
                 for (var provider : craftingService.getProviders(details)) {
                     anyProvider = true;
-                    if (!provider.isBusy()) {
-                        return SchedulingPolicy.Refusal.FUTILE;
-                    }
                 }
             }
             return anyProvider ? SchedulingPolicy.Refusal.TRANSIENT : SchedulingPolicy.Refusal.FUTILE;
