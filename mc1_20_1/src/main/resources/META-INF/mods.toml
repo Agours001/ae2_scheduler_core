@@ -1,0 +1,37 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+license = "MIT"
+
+[[mods]]
+modId = "schedulercore"
+version = "${mod_version}"
+displayName = "${mod_name}"
+authors = "${mod_authors}"
+description = '''${mod_description}'''
+displayURL = "https://github.com/Agours001/ae2_scheduler_core"
+issueTrackerURL = "https://github.com/Agours001/ae2_scheduler_core/issues"
+logoFile = "schedulercore_logo.png"
+
+# AE2 15.x is the Minecraft 1.20.1 line. The floor is kept at the 15.x family rather than at the exact version
+# this was built against, for the same reason the 1.21.1 target's range is not derived from its build version:
+# a declared range that mirrors the development build refuses to load on a slightly older pack.
+[[dependencies.schedulercore]]
+modId = "forge"
+type = "required"
+versionRange = "${forge_dependency_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.schedulercore]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.20.1,1.21)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.schedulercore]]
+modId = "ae2"
+type = "required"
+versionRange = "${ae2_dependency_range_1_20_1}"
+ordering = "AFTER"
+side = "BOTH"

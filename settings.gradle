@@ -1,3 +1,16 @@
+// Two targets, one shared core.
+//
+//   common/     sources BOTH targets compile (pure scheduling logic + the AE2-facing mixins)
+//   mc1_21_1/   target: Minecraft 1.21.1 / NeoForge 21.1.x  (the released line)
+//   mc1_20_1/   target: Minecraft 1.20.1 / Forge 47.4.x, also runs on NeoForge 47.1.x (not wired up yet)
+//
+// `common` is a source directory, NOT a subproject: each target compiles it with its own Minecraft
+// mappings, which is what makes one shared tree possible across two mapping generations. Sharing a
+// compiled jar instead would not work - Forge 1.20.1 runs SRG names while NeoForge 1.21 runs official
+// ones, so a class file built in one context is not usable in the other.
+//
+// A target is added by enabling its `include` below; each target's build.gradle declares its own
+// mod-loader toolchain, so the two never have to agree on a Gradle plugin version.
 pluginManagement {
     repositories {
         mavenCentral()
@@ -6,7 +19,14 @@ pluginManagement {
             name = 'NeoForged'
             url = 'https://maven.neoforged.net/releases'
         }
+        maven {
+            name = 'Forge'
+            url = 'https://maven.minecraftforge.net/'
+        }
     }
 }
 
 rootProject.name = 'ae2_scheduler_core'
+
+include 'mc1_21_1'
+// include 'mc1_20_1'

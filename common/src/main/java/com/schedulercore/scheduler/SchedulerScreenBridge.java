@@ -43,4 +43,23 @@ public interface SchedulerScreenBridge {
      * {@code getElapsedTimeTracker()} cannot do, since the pane reads those too.
      */
     appeng.api.networking.crafting.CraftingJobStatus schedulercore$cpuStatus();
+
+    /**
+     * Writes every scheduled order into {@code output}, under its own tag.
+     *
+     * <p>Called by a target's {@code writeToNBT} hook, which has to declare that method's exact signature -
+     * Mixin matches handlers by descriptor and does not let one drop a trailing argument - and whose signature
+     * therefore differs between generations. The work itself is target-independent, so it lives here and the
+     * per-generation hook is two lines.
+     */
+    void schedulercore$saveJobs(net.minecraft.nbt.CompoundTag output);
+
+    /**
+     * Rebuilds every scheduled order from {@code data}, after vanilla's own read has restored the inventory.
+     *
+     * <p>The counterpart of {@link #schedulercore$saveJobs}, with the same reason for being here: the reader's
+     * signature gained a registry lookup in 1.20.5, and the lookup is fetched from the CPU's level rather than
+     * threaded through the hook - see {@code NbtSupport}.
+     */
+    void schedulercore$loadJobs(net.minecraft.nbt.CompoundTag data);
 }

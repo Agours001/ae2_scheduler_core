@@ -82,13 +82,29 @@ Splitting the per-tick budget between jobs as tokens is explicitly forbidden her
 Nothing needs to be downloaded by hand — Gradle resolves everything, including AE2 and GuideME:
 
 ```powershell
-./gradlew test      # L1 pure-logic assertions - fast, no Minecraft needed
-./gradlew build     # produces build/libs/schedulercore-<version>.jar
+./gradlew build              # every target; the jar lands in mc1_21_1/build/libs/
+./gradlew :mc1_21_1:test     # L1 pure-logic assertions - fast, no Minecraft needed
+./gradlew :mc1_21_1:runServer   # headless dev server (see the rig commands below)
 ```
+
+### Repository layout
+
+One repository, two Minecraft targets, one shared core:
+
+| Path | What it is |
+|---|---|
+| `common/` | the sources **both** targets compile: the pure scheduling logic and the AE2-facing mixins. Not a Gradle project — each target adds this directory to its own source set, so it is compiled with that target's mappings (which is what makes one shared tree possible across two mapping generations). |
+| `mc1_21_1/` | target: Minecraft 1.21.1 / NeoForge 21.1.x — the released line. Owns the mod entry point, the block, the client models, the acceptance rig, the generation-specific mixins (job NBT signature, crafting-job suspend) and the mod metadata. |
+| `mc1_20_1/` | target: Minecraft 1.20.1 / Forge 47.4.x (also runs on NeoForge 47.1.x, since AE2 ships one jar tagged for both there). **Not wired up yet** — see the status note at the top of its `build.gradle`. |
+
+The two generation-specific capabilities the shared code needs — serialising a job (whose signature gained a
+registry lookup in 1.20.5) and suspending one (AE2 gained that in 19.2.16, so the whole 1.20.1 line has no such
+feature) — reach `common` through `NbtSupport` and `SuspendSupport`, which a target installs at construction.
+That is what keeps shared files free of types that exist in only one generation.
 
 | | |
 |---|---|
-| JDK | 21 (the toolchain is pinned in `build.gradle`) |
+| JDK | 21 for `mc1_21_1` (pinned per target; `mc1_20_1` will be 17) |
 | Gradle | the wrapper is committed; use `./gradlew`, not a system Gradle |
 | AE2 / GuideME | resolved from [Modrinth's Maven](https://api.modrinth.com/maven) as `maven.modrinth:XxWD5pD3` / `maven.modrinth:Ck4E7v7R`, pinned by version in `gradle.properties` |
 
@@ -96,17 +112,17 @@ Nothing needs to be downloaded by hand — Gradle resolves everything, including
 > uses Modrinth as the canonical source. If that ever changes, adding the AE2 Maven back is a one-line
 > repository addition.
 
-**Offline / air-gapped builds.** If the machine has no network, put the two jars in `libs/` and they take
-precedence over the resolved ones (that directory is gitignored):
+**Offline / air-gapped builds.** If the machine has no network, put the two jars in the target's `libs/` and
+they take precedence over the resolved ones (that directory is gitignored):
 
 ```
-libs/appliedenergistics2-19.2.17.jar
-libs/guideme-21.1.17.jar
+mc1_21_1/libs/appliedenergistics2-19.2.17.jar
+mc1_21_1/libs/guideme-21.1.17.jar
 ```
 
 Both are present under `mods/` in any AE2 modpack instance. This is an escape hatch, not the normal path.
 
-**Testing this mod against another addon.** The same directory is how an interop problem gets caught: copy the other addon's jar (and its own dependencies) into `libs/`, run `./gradlew runServer`, and check `/schedulercore uiprobe rows`. The list must contain the CPU rows **and** one row per running order; if the order rows are missing while the CPU rows are there, another mod is competing for `getCpus()` — see [Per-order rows](#per-order-rows-and-the-cpu-set-they-share). That is exactly how the AdvancedAE interaction in 1.0.3 was found, reproduced and fixed; `libs/` is gitignored, so nothing is left behind.
+**Testing this mod against another addon.** The same directory is how an interop problem gets caught: copy the other addon's jar (and its own dependencies) into `mc1_21_1/libs/`, run `./gradlew :mc1_21_1:runServer`, and check `/schedulercore uiprobe rows`. The list must contain the CPU rows **and** one row per running order; if the order rows are missing while the CPU rows are there, another mod is competing for `getCpus()` — see [Per-order rows](#per-order-rows-and-the-cpu-set-they-share). That is exactly how the AdvancedAE interaction in 1.0.3 was found, reproduced and fixed; `libs/` is gitignored, so nothing is left behind.
 
 ## How it works
 

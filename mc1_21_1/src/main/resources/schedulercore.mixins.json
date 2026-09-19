@@ -10,10 +10,13 @@
   "mixins": [
     "AccessorElapsedTimeTracker",
     "AccessorExecutingCraftingJob",
+    "AccessorExecutingCraftingJobTarget",
     "MixinCraftingCPUCalculator",
     "MixinCraftingCPUCluster",
     "MixinCraftingCPUMenu",
     "MixinCraftingCpuLogic",
+    "MixinCraftingCpuLogicPersistence",
+    "MixinCraftingCpuLogicSuspension",
     "MixinCraftingService",
     "MixinCraftingStatusMenu"
   ],

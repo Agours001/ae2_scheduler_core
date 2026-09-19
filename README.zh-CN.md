@@ -82,29 +82,44 @@ AE2 的合成 CPU 一次只能接一个订单。本模组增加一个 **调度�
 **不需要手动下载任何东西**——包括 AE2 与 GuideME，全部由 Gradle 自动解析：
 
 ```powershell
-./gradlew test      # L1 纯逻辑断言，很快，不需要 Minecraft
-./gradlew build     # 产出 build/libs/schedulercore-<版本>.jar
+./gradlew build                 # 构建全部目标；jar 落在 mc1_21_1/build/libs/
+./gradlew :mc1_21_1:test        # L1 纯逻辑断言，很快，不需要 Minecraft
+./gradlew :mc1_21_1:runServer   # 无头开发服务器（配合下面的装置指令）
 ```
+
+### 仓库结构
+
+一个仓库、两个 Minecraft 目标、一份共享核心：
+
+| 路径 | 说明 |
+|---|---|
+| `common/` | **两个目标共同编译**的源码：纯调度逻辑 + 面向 AE2 的混入。它**不是** Gradle 子项目——每个目标把这个目录加进自己的 sourceSet，因此会用**各自的映射**编译（这正是同一份源码能跨越两代映射的原因）。 |
+| `mc1_21_1/` | 目标：MC 1.21.1 / NeoForge 21.1.x —— 当前发布线。拥有模组入口、方块、客户端模型、验收装置、**本代专属的混入**（存档签名、合成作业挂起）与元数据。 |
+| `mc1_20_1/` | 目标：MC 1.20.1 / Forge 47.4.x（同时可跑 NeoForge 47.1.x —— AE2 在 1.20.1 上就是一个 jar 同时标 forge/neoforge）。**尚未接入构建**，状态见其 `build.gradle` 顶部说明。 |
+
+共享代码需要的那两处"版本相关能力"——作业序列化（1.20.5 起签名多了注册表查询）、作业挂起（AE2 19.2.16
+才有，所以整条 1.20.1 线都没这个功能）——通过 `NbtSupport` 与 `SuspendSupport` 由各目标在构造时装配。
+这就是共享文件里不出现"只有某一代才有的类型"的原因。
 
 | | |
 |---|---|
-| JDK | 21（工具链已在 `build.gradle` 里钉死） |
+| JDK | `mc1_21_1` 用 21（各目标自行钉死；`mc1_20_1` 会是 17） |
 | Gradle | 已内置 wrapper，请用 `./gradlew`，不要用系统装的 Gradle |
 | AE2 / GuideME | 从 [Modrinth Maven](https://api.modrinth.com/maven) 解析，坐标为 `maven.modrinth:XxWD5pD3` / `maven.modrinth:Ck4E7v7R`，版本钉在 `gradle.properties` |
 
 > AE2 官方的 `maven.appliedenergistics.org` 目前**连 DNS 记录都不存在**，所以构建改用 Modrinth 作为
 > 权威来源。日后若它恢复，加回一行仓库配置即可。
 
-**离线 / 无网环境**：把两个 jar 放进 `libs/`，它们会优先于解析结果（该目录已 gitignore）：
+**离线 / 无网环境**：把两个 jar 放进**对应目标的** `libs/`，它们会优先于解析结果（该目录已 gitignore）：
 
 ```
-libs/appliedenergistics2-19.2.17.jar
-libs/guideme-21.1.17.jar
+mc1_21_1/libs/appliedenergistics2-19.2.17.jar
+mc1_21_1/libs/guideme-21.1.17.jar
 ```
 
 这两个 jar 在任何装了 AE2 的整合包实例的 `mods/` 下都有。这是兜底手段，不是常规路径。
 
-**用它来验证"与其他附属是否打架"**：把对方附属的 jar（连同它自己的前置）也丢进 `libs/`，`./gradlew runServer` 起服，然后看 `/schedulercore uiprobe rows`——列表里必须**同时**有 CPU 行和每个在跑订单的行。如果 CPU 行在、订单行没有，说明有别的模组也在争 `getCpus()`，见[逐单行，以及它们共用的那个 CPU 集合](#逐单行以及它们共用的那个-cpu-集合)。1.0.3 修的 AdvancedAE 互操作问题就是这样被抓到、复现并修掉的；`libs/` 已 gitignore，不会留下垃圾。
+**用它来验证"与其他附属是否打架"**：把对方附属的 jar（连同它自己的前置）也丢进 `mc1_21_1/libs/`，`./gradlew :mc1_21_1:runServer` 起服，然后看 `/schedulercore uiprobe rows`——列表里必须**同时**有 CPU 行和每个在跑订单的行。如果 CPU 行在、订单行没有，说明有别的模组也在争 `getCpus()`，见[逐单行，以及它们共用的那个 CPU 集合](#逐单行以及它们共用的那个-cpu-集合)。1.0.3 修的 AdvancedAE 互操作问题就是这样被抓到、复现并修掉的；`libs/` 已 gitignore，不会留下垃圾。
 
 ## 实现原理
 

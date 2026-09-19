@@ -2,10 +2,6 @@ package com.schedulercore.mixin;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
-import org.spongepowered.asm.mixin.gen.Invoker;
-
-import net.minecraft.core.HolderLookup;
-import net.minecraft.nbt.CompoundTag;
 
 import appeng.api.stacks.GenericStack;
 import appeng.crafting.CraftingLink;
@@ -45,12 +41,6 @@ public interface AccessorExecutingCraftingJob {
     @Accessor("remainingAmount")
     void schedulercore$setRemainingAmount(long remaining);
 
-    @Accessor("suspended")
-    boolean schedulercore$suspended();
-
-    @Accessor("suspended")
-    void schedulercore$setSuspended(boolean suspended);
-
     @Accessor("waitingFor")
     appeng.crafting.inv.ListCraftingInventory schedulercore$waitingFor();
 
@@ -64,10 +54,10 @@ public interface AccessorExecutingCraftingJob {
     @Accessor("timeTracker")
     appeng.crafting.execution.ElapsedTimeTracker schedulercore$timeTracker();
 
-    /**
-     * The serialisation method is package-private; the scheduler needs it to persist every job rather than
-     * only the one vanilla knows about.
-     */
-    @Invoker("writeToNBT")
-    CompoundTag schedulercore$writeToNBT(HolderLookup.Provider registries);
+    // Two members deliberately live in a target's own accessor instead of here, because they do not exist in
+    // every supported AE2 generation:
+    //   * `suspended` - AE2 gained crafting-job suspend only in 19.2.16, so the whole 1.20.1 line lacks the
+    //     field. It is reached through `SuspendSupport`, whose implementation a target installs.
+    //   * `writeToNBT` - its signature gained a registry lookup in 1.20.5, and naming that type here would
+    //     stop this file from compiling against 1.20.1. It is reached through `NbtSupport` instead.
 }

@@ -9,9 +9,10 @@ out/
 classes/
 
 # Dev run directory: worlds, logs, crash reports, mixin dumps.
-# NOTE: keep /run/ ignored as a whole — the reusable test rig is meant to be
-# rebuilt by commands, not committed (a world dir is hundreds of MB).
-/run/
+# NOTE: keep run/ ignored as a whole, at any depth — each target has its own run/ (the two Minecraft
+# versions cannot share a world), and the reusable test rig is meant to be rebuilt by commands, not
+# committed (a world dir is hundreds of MB).
+run/
 
 # Logs and one-off measurement dumps
 *.log

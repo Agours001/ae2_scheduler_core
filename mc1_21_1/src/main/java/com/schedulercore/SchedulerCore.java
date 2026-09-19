@@ -99,6 +99,10 @@ public final class SchedulerCore {
         // The in-game guide (GuideME, shipped by AE2). Data-only: pages live under
         // assets/schedulercore/ae2guide/ and the page front matter maps items to them.
         com.schedulercore.client.SchedulerCoreGuide.register();
+        // Hand the shared scheduler this generation's two version-specific capabilities: job serialisation
+        // (which gained a registry lookup in 1.20.5) and crafting-job suspend (AE2 19.2.16+). See
+        // NeoForgeSupport and, on the shared side, NbtSupport and SuspendSupport.
+        com.schedulercore.support.NeoForgeSupport.install();
         LOG.info("{} loaded: scheduler core block + component; multi-job time-slice scheduler is armed.",
                 MOD_ID);
     }

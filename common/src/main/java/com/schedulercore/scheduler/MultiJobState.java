@@ -109,9 +109,14 @@ public final class MultiJobState {
         /** Accounts {@code amount} of {@code key} against the job's tracker, as vanilla's insert does. */
         void decrementTracker(ExecutingCraftingJob job, appeng.api.stacks.AEKey key, long amount);
 
-        /** Serialises one job. */
-        net.minecraft.nbt.CompoundTag writeToNBT(ExecutingCraftingJob job,
-                net.minecraft.core.HolderLookup.Provider registries);
+        /**
+         * Serialises one job, through whatever this target's AE2 needs - see {@link NbtSupport}.
+         *
+         * <p>Deliberately takes no registry argument: the registry context is a property of the level the CPU
+         * lives in, so the implementation asks the level for it. Naming it here would put a type into shared
+         * code that only one of the two supported generations has.
+         */
+        net.minecraft.nbt.CompoundTag writeToNBT(ExecutingCraftingJob job);
 
         /**
          * How many incoming items the CPU's dump guard has refused since it was created.

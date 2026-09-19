@@ -1,45 +1,54 @@
 // Dev-instance bootstrap for this mod's isolated test world.
 //
-// Kept in the repo so the rig is reproducible: `runServer` must come up in its OWN world (so a
-// player's main save is never touched). Files under run/ are gitignored, so this script is what
-// reconstructs them after a clone.
+// Kept in the repo so the rig is reproducible: a target's `runServer` must come up in its OWN world
+// (so a player's main save is never touched). Files under a target's run/ are gitignored, so this
+// script is what reconstructs them after a clone.
 //
-// Used via:  gradle -I init.gradle runServer
+// Used via:  gradlew -I init.gradle :mc1_21_1:runServer
+//
+// Every target gets its own run/ directory: the two targets run different Minecraft versions, whose
+// worlds are not interchangeable, so they must never share one.
 //
 // RCON is deliberately NOT configured here: it is only needed for the headless harness, and a
 // committed password is a credential in a public repository. To drive the server over RCON,
 // uncomment the two lines below and pick your own password (or export RCON_PASSWORD and use it).
 //
 // NOTE: an init script is evaluated against Gradle, not against a Project, so `rootDir` does NOT
-// exist here. The project directory has to come from the root project explicitly.
+// exist here. The project directory has to come from a project explicitly.
 gradle.projectsEvaluated {
-    def runDir = new File(gradle.rootProject.projectDir, "run")
-    runDir.mkdirs()
-    new File(runDir, "eula.txt").text = "eula=true\n"
-
-    def props = new File(runDir, "server.properties")
-    def wanted = [
-            "level-name"       : "scheduler_rig",
-            "online-mode"      : "false",
-            "spawn-protection" : "0",
-            "max-tick-time"    : "-1",
-    ]
-    // "enable-rcon"     : "true",
-    // "rcon.port"       : "25575",
-    // "rcon.password"   : System.getenv("RCON_PASSWORD") ?: "change-me",
-    def lines = props.exists() ? props.readLines() : []
-    def seen = [] as Set
-    def out = lines.collect { line ->
-        def eq = line.indexOf('=')
-        if (eq > 0) {
-            def k = line.substring(0, eq).trim()
-            if (wanted.containsKey(k)) {
-                seen << k
-                return "${k}=${wanted[k]}"
-            }
+    gradle.rootProject.allprojects.each { target ->
+        // Only targets that can actually start a server: `common` is a directory, not a project.
+        if (target.tasks.findByName('runServer') == null) {
+            return
         }
-        return line
+        def runDir = new File(target.projectDir, "run")
+        runDir.mkdirs()
+        new File(runDir, "eula.txt").text = "eula=true\n"
+
+        def props = new File(runDir, "server.properties")
+        def wanted = [
+                "level-name"       : "scheduler_rig",
+                "online-mode"      : "false",
+                "spawn-protection" : "0",
+                "max-tick-time"    : "-1",
+        ]
+        // "enable-rcon"     : "true",
+        // "rcon.port"       : "25575",
+        // "rcon.password"   : System.getenv("RCON_PASSWORD") ?: "change-me",
+        def lines = props.exists() ? props.readLines() : []
+        def seen = [] as Set
+        def out = lines.collect { line ->
+            def eq = line.indexOf('=')
+            if (eq > 0) {
+                def k = line.substring(0, eq).trim()
+                if (wanted.containsKey(k)) {
+                    seen << k
+                    return "${k}=${wanted[k]}"
+                }
+            }
+            return line
+        }
+        wanted.each { k, v -> if (!seen.contains(k)) out << "${k}=${v}" }
+        props.text = out.join("\n") + "\n"
     }
-    wanted.each { k, v -> if (!seen.contains(k)) out << "${k}=${v}" }
-    props.text = out.join("\n") + "\n"
 }

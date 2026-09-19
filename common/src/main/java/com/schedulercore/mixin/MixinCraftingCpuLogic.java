@@ -10,7 +10,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -229,12 +228,12 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
 
         @Override
         public boolean suspended(ExecutingCraftingJob job) {
-            return schedulercore$access(job).schedulercore$suspended();
+            return com.schedulercore.scheduler.SuspendSupport.suspended(job);
         }
 
         @Override
         public void setSuspended(ExecutingCraftingJob job, boolean suspended) {
-            schedulercore$access(job).schedulercore$setSuspended(suspended);
+            com.schedulercore.scheduler.SuspendSupport.setSuspended(job, suspended);
         }
 
         @Override
@@ -254,8 +253,9 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
         }
 
         @Override
-        public CompoundTag writeToNBT(ExecutingCraftingJob job, HolderLookup.Provider registries) {
-            return schedulercore$access(job).schedulercore$writeToNBT(registries);
+        public CompoundTag writeToNBT(ExecutingCraftingJob job) {
+            return com.schedulercore.scheduler.NbtSupport.write(job,
+                    com.schedulercore.scheduler.NbtSupport.contextFor(cluster));
         }
 
         @Override
@@ -802,14 +802,21 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
      *
      * <p>Stored under a separate key so it can never collide with vanilla's own {@code job} tag. The matching
      * read path is {@link #schedulercore$loadJobs}, which runs at the end of {@code readFromNBT}.
+     *
+     * <p><b>Why this is a bridge method rather than the injector itself.</b> A Mixin handler has to declare its
+     * target's exact signature - a trailing argument cannot be dropped - and the target's signature is exactly
+     * what differs between the two supported generations ({@code writeToNBT(CompoundTag)} before 1.20.5,
+     * {@code writeToNBT(CompoundTag, HolderLookup.Provider)} after). So each target's mixin declares the hook
+     * and forwards here, where the work - which is the same everywhere - actually lives.
      */
-    @Inject(method = "writeToNBT", at = @At("TAIL"))
-    private void schedulercore$saveJobs(CompoundTag output, HolderLookup.Provider registries, CallbackInfo ci) {
+    @Override
+    public void schedulercore$saveJobs(CompoundTag output) {
         try {
             var state = schedulercore$state();
             if (state.isEmpty()) {
                 return;
             }
+            final Object nbtContext = com.schedulercore.scheduler.NbtSupport.contextFor(cluster);
             var list = new ListTag();
             // Every order, never the page that happens to be focused: a save that followed the screen would
             // write one job and silently drop the rest of the queue.
@@ -818,7 +825,7 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
                 entry.putLong("id", slot.id());
                 entry.putLong("reserved", slot.reservedBytes());
                 // The accessor view wraps the package-private serialiser.
-                entry.put("job", schedulercore$view.writeToNBT(slot.job(), registries));
+                entry.put("job", schedulercore$view.writeToNBT(slot.job()));
                 list.add(entry);
             }
             output.put("schedulercore_jobs", list);
@@ -844,9 +851,12 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
      *
      * <p>The job's ordered amount is recovered from the restored job itself
      * ({@code finalOutput.amount()}), so the saved format does not need another field for it.
+     *
+     * <p>Like {@link #schedulercore$saveJobs}, this is a bridge method rather than the injector: each target's
+     * mixin declares the hook with that generation's exact signature and forwards here.
      */
-    @Inject(method = "readFromNBT", at = @At("TAIL"))
-    private void schedulercore$loadJobs(CompoundTag data, HolderLookup.Provider registries, CallbackInfo ci) {
+    @Override
+    public void schedulercore$loadJobs(CompoundTag data) {
         try {
             if (!data.contains("schedulercore_jobs", Tag.TAG_LIST)) {
                 return; // ordinary CPU, or a save written before the scheduler ever ran on it
@@ -863,7 +873,9 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
                     continue;
                 }
                 var job = com.schedulercore.scheduler.CraftingJobFactory.restore(
-                        entry.getCompound("job"), registries, this::schedulercore$postChange,
+                        entry.getCompound("job"),
+                        com.schedulercore.scheduler.NbtSupport.contextFor(cluster),
+                        this::schedulercore$postChange,
                         (CraftingCpuLogic) (Object) this);
                 var out = schedulercore$view.finalOutput(job);
                 if (out == null) {
@@ -1641,42 +1653,6 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
     }
 
     /**
-     * Reports whether the job the screen is showing is suspended.
-     *
-     * <p><b>This one is the difference between suspend working and suspend being a one-way trip.</b> The
-     * crafting-status screen asks the server to toggle: the server evaluates
-     * {@code setJobSuspended(!isJobSuspended())}, and vanilla's {@code isJobSuspended()} is
-     * {@code job != null && job.suspended}. The scheduler leaves that field empty, so it always answered
-     * "not suspended", so every press of the button meant "suspend" and the order could never be resumed -
-     * reported from a real machine as "挂起成功，但挂起后无法恢复".
-     *
-     * <p><b>Which subject, and why it is not {@code currentSlot()}.</b> The button belongs to a page: an
-     * order's row puts that order in focus and the button then means that order, while the CPU's own row (and
-     * the CPU block's own screen, which has no list) has no order in focus and the button then means the
-     * machine - "every order on this CPU". Reading the current slice owner instead would make the CPU page's
-     * button act on whichever order happened to be served this tick, which is not something the page can
-     * explain to the player.
-     *
-     * <p>Answering for the focus rather than for the slice owner matters in the per-order case for the same
-     * reason it always did: a suspended job stops being the owner, so an answer that followed the owner would
-     * come back describing a different order and the button could never be pressed twice.
-     */
-    @Inject(method = "isJobSuspended", at = @At("HEAD"), cancellable = true)
-    private void schedulercore$reportSuspension(CallbackInfoReturnable<Boolean> cir) {
-        try {
-            var state = schedulercore$state();
-            var focused = state.focusedSlot();
-            if (focused != null) {
-                cir.setReturnValue(schedulercore$view.suspended(focused.job()));
-            } else if (!state.isEmpty()) {
-                cir.setReturnValue(state.allSuspended());
-            }
-        } catch (Throwable t) {
-            SchedulerCore.LOG.error("[schedulercore] could not report suspension", t);
-        }
-    }
-
-    /**
      * Reports how much of {@code template} the CPU is storing <b>for the order being shown</b>.
      *
      * <p>With no order selected the page describes the machine, and the pooled amount is the right answer -
@@ -1799,46 +1775,11 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
         }
     }
 
-    /**
-     * Makes the crafting screen's suspend action affect the page it was pressed on: one order, or the CPU.
-     *
-     * <p>Vanilla's {@code setJobSuspended} writes the single-job field, which the scheduler leaves empty
-     * between ticks - so on a real machine the button did nothing at all.
-     *
-     * <p><b>Which subject.</b> With an order in focus the button means that order, exactly as before. With no
-     * order in focus - the CPU's own row, or the CPU block's own screen, which has no list at all - the button
-     * means <b>every order on this CPU</b>, so the machine can be frozen and released in one press. That is
-     * the only sane reading of a button on a page that describes the machine, and it pairs with
-     * {@link #schedulercore$reportSuspension}, which reports "all of them" for the same case; the two have to
-     * agree or the button's next press would go the wrong way.
-     *
-     * <p>A suspended job is reported as BLOCKED by the rotation, so a per-order suspend makes the CPU move on
-     * to the next order instead of stalling, and suspending all of them simply leaves nothing to serve - a
-     * state the rotation already handles (and a test already covers).
-     */
-    @Inject(method = "setJobSuspended", at = @At("TAIL"))
-    private void schedulercore$applySuspension(boolean suspended, CallbackInfo ci) {
-        try {
-            var state = schedulercore$state();
-            if (state.isEmpty()) {
-                return; // vanilla path already did the right thing
-            }
-            // Target the job the screen is describing, not "whoever owns the current slice". Those differ
-            // exactly when it matters: suspending a job takes it out of the rotation, so the owner becomes a
-            // different job (or nobody) immediately after, and the screen keeps describing the job that was
-            // just suspended.
-            var focused = state.focusedSlot();
-            if (focused != null) {
-                schedulercore$view.setSuspended(focused.job(), suspended);
-                SchedulerCore.LOG.info("[schedulercore] job #{} suspended={}", focused.id(), suspended);
-                return;
-            }
-            state.setAllSuspended(suspended);
-            SchedulerCore.LOG.info("[schedulercore] all {} job(s) suspended={}", state.size(), suspended);
-        } catch (Throwable t) {
-            SchedulerCore.LOG.error("[schedulercore] could not change suspension", t);
-        }
-    }
+    // The two suspend hooks are NOT here: they exist only where AE2 has the feature (19.2.16+, i.e. the
+    // 1.21.1 target), so they live in that target's mixin and go through
+    // {@link com.schedulercore.scheduler.SuspendSupport}. Everything shared reads the flag through that
+    // class, which is why this file needs no idea whether suspend exists at all.
+
 
     /**
      * True when this CPU multiblock contains a scheduler core.

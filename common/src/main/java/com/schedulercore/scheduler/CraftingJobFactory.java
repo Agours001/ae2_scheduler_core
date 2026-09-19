@@ -131,16 +131,23 @@ public final class CraftingJobFactory {
      * {@code ExecutingCraftingJob(CompoundTag, HolderLookup.Provider, CraftingDifferenceListener,
      * CraftingCpuLogic)}, and one of those parameter types cannot be named from outside AE2's package.
      *
+     * <p>The registry lookup arrives as an {@code Object} because the generation that needs it is not the only
+     * one this file must compile against: 1.20.1's reader takes no registry argument at all. The constructor's
+     * own arity decides the argument list, so neither case has to be named here.
+     *
      * <p><b>Why not deserialise the job by hand.</b> A job's NBT holds its link, final output, remaining
      * amount, waiting-for ledger, elapsed-time tracker and task table - reimplementing that would duplicate
      * AE2's format and go silently wrong the first time the format changes. Vanilla's own constructor is the
      * only reader guaranteed to stay in step with vanilla's writer, and it also registers the link with the
      * crafting service, which a hand-written route would forget.
      */
-    public static ExecutingCraftingJob restore(net.minecraft.nbt.CompoundTag data,
-            net.minecraft.core.HolderLookup.Provider registries, DifferenceSink sink, CraftingCpuLogic cpu) {
+    public static ExecutingCraftingJob restore(net.minecraft.nbt.CompoundTag data, Object nbtContext,
+            DifferenceSink sink, CraftingCpuLogic cpu) {
         try {
-            return nbtConstructor().newInstance(data, registries, listenerProxy(sink), cpu);
+            var constructor = nbtConstructor();
+            return constructor.getParameterCount() == 4
+                    ? constructor.newInstance(data, nbtContext, listenerProxy(sink), cpu)
+                    : constructor.newInstance(data, listenerProxy(sink), cpu);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("schedulercore: cannot restore ExecutingCraftingJob", e);
         }
@@ -153,20 +160,24 @@ public final class CraftingJobFactory {
         if (nbtConstructor == null) {
             for (var candidate : ExecutingCraftingJob.class.getDeclaredConstructors()) {
                 var params = candidate.getParameterTypes();
-                if (params.length == 4 && params[0] == net.minecraft.nbt.CompoundTag.class) {
+                // Four parameters where the reader takes a registry lookup, three where it does not. Both
+                // begin with the tag and end with (listener, CraftingCpuLogic), so the listener is the
+                // second-to-last argument in either shape.
+                if ((params.length == 4 || params.length == 3)
+                        && params[0] == net.minecraft.nbt.CompoundTag.class) {
                     candidate.setAccessible(true);
                     nbtConstructor = (Constructor<ExecutingCraftingJob>) candidate;
                     if (listenerType == null) {
-                        // Parameter 2 is the package-private listener - the same type the plan constructor
-                        // takes. Recorded here too so restore() works even if it is the first one reached.
-                        listenerType = params[2];
+                        // The package-private listener - the same type the plan constructor takes. Recorded
+                        // here too so restore() works even if it is the first one reached.
+                        listenerType = params[params.length - 2];
                     }
                     break;
                 }
             }
             if (nbtConstructor == null) {
                 throw new NoSuchMethodException(
-                        "ExecutingCraftingJob(CompoundTag, HolderLookup.Provider, listener, CraftingCpuLogic)");
+                        "ExecutingCraftingJob(CompoundTag[, registry lookup], listener, CraftingCpuLogic)");
             }
         }
         return nbtConstructor;

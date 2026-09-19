@@ -1,0 +1,23 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "com.schedulercore.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "plugin": "com.schedulercore.mixin.SchedulerCoreMixinPlugin",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [
+    "AccessorElapsedTimeTracker",
+    "AccessorExecutingCraftingJob",
+    "MixinCraftingCPUCalculator",
+    "MixinCraftingCPUCluster",
+    "MixinCraftingCPUMenu",
+    "MixinCraftingCpuLogic",
+    "MixinCraftingCpuLogicPersistence",
+    "MixinCraftingService",
+    "MixinCraftingStatusMenu"
+  ],
+  "client": [],
+  "server": []
+}

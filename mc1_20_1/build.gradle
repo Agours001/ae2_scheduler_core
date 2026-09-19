@@ -1,0 +1,67 @@
+// Target: Minecraft 1.20.1 — Forge 47.4.x. AE2 ships one jar tagged for both Forge and NeoForge on this
+// Minecraft version (verified on Modrinth: version 15.3.6 lists "forge,neoforge" against a single file), and
+// NeoForge 1.20.1 loads Forge 1.20.1 mods, so this one build serves both loaders.
+//
+// STATUS: NOT WIRED UP. `settings.gradle` does not include this project yet, so nothing here is built.
+// What is already true:
+//   * `common/` is split so that this target can compile it: the two generation-specific capabilities reach
+//     the shared code through `NbtSupport` and `SuspendSupport` instead of being referenced directly.
+//   * the shared mixin list is known to exist in AE2 15.4.9/15.4.10 - checked member by member against the
+//     real jars, including the whole craftiing-status CPU list mechanism that the per-order rows need.
+//   * the 1.20.1 persistence hook is written (see src/main/java .../MixinCraftingCpuLogicPersistence.java):
+//     it is the one mixin whose target signature differs, and it is small.
+//
+// What is left, in the order it has to be done:
+//   1. this build script: ForgeGradle 6 replaces ModDevGradle, and the mappings/run configuration differ.
+//      Nothing here has been executed yet - the toolchain has to resolve before anything else can be checked.
+//   2. the loader glue for this generation: `SchedulerCore` (Forge event bus, `RegistryObject` instead of
+//      NeoForge's `DeferredItem`/`DeferredBlock`), the capability registration (classic `ICapabilityProvider`
+//      instead of NeoForge's `RegisterCapabilitiesEvent`; AE2 15.x has no `AECapabilities` class at all),
+//      and the per-generation block/item/unit-type classes.
+//   3. the client model loaders: the geometry API this mod uses (`IUnbakedGeometry`, `IGeometryBakingContext`)
+//      does not exist in 1.20.1, so that code has to be rewritten against `IUnbakedModel`/`IModelLoader`.
+//   4. `SuspendSupport` is deliberately left uninstalled here, because AE2 15.x has no crafting-job suspend:
+//      the screen has no such button, so there is nothing to wire. The shared scheduler treats every order as
+//      runnable, which is exactly what that generation does.
+//   5. the acceptance rig (`command/`, `measure/`) is not part of this target: it is dev tooling that would
+//      need porting to a much older AE2 dev API, and shipping it is not required for players.
+plugins {
+    id 'java'
+    // id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+}
+
+// group = mod_group
+// version = mod_version
+// base {
+//     archivesName = "${mod_id}-mc1.20.1"
+// }
+//
+// java {
+//     toolchain {
+//         languageVersion = JavaLanguageVersion.of(17)
+//     }
+// }
+//
+// sourceSets {
+//     main {
+//         java.srcDir '../common/src/main/java'
+//         resources.srcDir '../common/src/main/resources'
+//     }
+// }
+//
+// minecraft {
+//     mappings channel: 'official', version: '1.20.1'
+//     runs {
+//         server { ... }
+//     }
+// }
+//
+// dependencies {
+//     minecraft 'net.minecraftforge:forge:1.20.1-47.4.13'
+//     compileOnly "maven.modrinth:XxWD5pD3:${ae2_version_1_20_1}"   // AE2 15.4.x (Forge flavour)
+//     compileOnly "maven.modrinth:Ck4E7v7R:${guideme_version_1_20_1}"
+// }
+//
+// processResources {
+//     filesMatching(['META-INF/mods.toml']) { expand ... }
+// }

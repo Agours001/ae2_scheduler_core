@@ -1,0 +1,135 @@
+// Target: Minecraft 1.21.1 / NeoForge 21.1.x — the released line.
+//
+// This project owns everything that is specific to this generation:
+//   * the mod entry point and registry glue (`SchedulerCore`, the block/item, the unit type)
+//   * the client model loaders (the geometry API changed after 1.20.1)
+//   * the acceptance rig (`command/`, `measure/`) — dev tooling, not shipped by the 1.20.1 target
+//   * the per-generation mixins: the NBT hooks (the serialiser signature gained a registry lookup in
+//     1.20.5+) and the suspend hooks (AE2 gained crafting-job suspend only in 19.2.16)
+//   * the mod metadata and the mixin config
+//
+// Everything else is compiled from `../common/src/main/java`, which both targets share.
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.146'
+}
+
+group = mod_group
+version = mod_version
+base {
+    // Gradle already appends the project version to the file name, so this only adds the Minecraft
+    // version: schedulercore-mc1.21.1-1.0.4.jar. Two targets live in one repository now, so the file
+    // name has to say which one it is.
+    archivesName = "${mod_id}-mc${minecraft_version}"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+sourceSets {
+    main {
+        java.srcDir '../common/src/main/java'
+        resources.srcDir '../common/src/main/resources'
+    }
+    test {
+        java.srcDir '../common/src/test/java'
+    }
+}
+
+neoForge {
+    version = neoforge_version
+
+    runs {
+        client {
+            client()
+            programArguments.addAll '--username', 'Dev'
+        }
+        server {
+            server()
+            // Headless smoke test: `gradlew :mc1_21_1:runServer` must reach "Done" without mixin or
+            // registry errors.
+            programArguments.addAll '--nogui'
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+    // Modrinth's Maven service is the canonical source for AE2 and GuideME here. Their own Maven
+    // (maven.appliedenergistics.org) currently has no DNS record at all, so it cannot be the primary
+    // source - a plain `gradlew build` has to work without the user fetching anything by hand.
+    // Coordinates are the Modrinth project ids; the version is the mod version.
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
+}
+
+dependencies {
+    // AE2 and GuideME are compile-only: at runtime the real mods come from the game instance.
+    // They are fetched automatically; nothing has to be placed in libs/.
+    compileOnly "maven.modrinth:XxWD5pD3:${ae2_version}"          // Applied Energistics 2
+    runtimeOnly "maven.modrinth:XxWD5pD3:${ae2_version}"
+    compileOnly "maven.modrinth:Ck4E7v7R:${guideme_version}"      // GuideME
+    runtimeOnly "maven.modrinth:Ck4E7v7R:${guideme_version}"
+
+    // Optional escape hatch for a machine with no network at all: drop the two jars into this
+    // project's libs/ and they take precedence. libs/*.jar is gitignored.
+    def localLibs = fileTree(dir: 'libs', include: ['*.jar'])
+    if (!localLibs.isEmpty()) {
+        compileOnly localLibs
+        runtimeOnly localLibs
+    }
+
+    // The L1 invariant tests are plain JUnit: they exercise the pure scheduling logic and must not
+    // need Minecraft or AE2 on the classpath, so that `gradlew test` stays a fast pre-flight check.
+    // They live in common/src/test because they test `common`, and this project runs them.
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        exceptionFormat 'full'
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+processResources {
+    def expandProps = [
+            mod_id                    : mod_id,
+            mod_name                  : mod_name,
+            mod_version               : mod_version,
+            mod_authors               : mod_authors,
+            mod_description           : mod_description,
+            mod_license               : mod_license,
+            neoforge_version          : neoforge_version,
+            minecraft_version         : minecraft_version,
+            // Runtime ranges come from their own properties, NOT from the development versions.
+            neoforge_dependency_range : neoforge_dependency_range,
+            ae2_dependency_range      : ae2_dependency_range
+    ]
+    inputs.properties(expandProps)
+    filesMatching(['META-INF/neoforge.mods.toml']) {
+        expand expandProps
+    }
+}
