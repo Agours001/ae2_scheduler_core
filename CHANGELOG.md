@@ -75,9 +75,13 @@ Minecraft generation is its own support window.
   and the linked face is AE2's dark crafting-cube base with the **co-processing unit's** emissive band,
   pixel for pixel, recoloured from its purple ramp onto the mod's teal one. The previous band was a recoloured
   crafting *storage* band, which is a different pattern and did not match the parts around it.
-  Its fully transparent pixels are also `#00FFFFFF` now, as AE2 writes them, instead of carrying the recolour's
-  own blue: mipmapping averages colour across transparent pixels, so at range the whole face blended to blue
-  and the block read as a solid blue cube rather than a dark one. The scheduler core **item** is untouched.
+  Every one of its pixels, transparent ones included, is now mapped from the co-processing unit's own purple
+  ramp onto the mod's teal one, with each pixel keeping its original alpha. AE2 writes its transparent pixels
+  as the *dark end of the block's own colour* — the accelerator's are `#9900CC` / `#AC00E5` / `#BF00FF` at
+  alpha 0, with white only on the outermost ring — and that is what makes mipmapping average to the block's
+  own hue. The old band carried a recolour's leftover blue in those pixels, so at range the whole face
+  blended to blue; replacing that with plain white only moved the problem, because an average of white is a
+  white block. **The scheduler core item is untouched.**
 
 ### Notes
 
