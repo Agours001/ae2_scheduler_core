@@ -194,14 +194,45 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
         return (AccessorExecutingCraftingJob) (Object) job;
     }
 
+    /**
+     * The scheduler's jobs for this CPU, <b>for reading only</b>.
+     *
+     * <p>It never creates one. Creating it here - which is what this method used to do - made a plain query
+     * register a state for the CPU, including for a CPU with no scheduler core that this mod does not manage
+     * at all, and every other hook then saw "this CPU has scheduler state" instead of "this CPU is none of our
+     * business". That is a mod-wide footprint on other people's crafting: measured on a real machine as a
+     * CPU without a scheduler core crafting its intermediates to completion before the next stage, which
+     * disappears when the mod is disabled.
+     *
+     * <p>{@link #schedulercore$ensureState()} is the writing counterpart, used by the two paths that actually
+     * take a CPU over (admission and restore).
+     */
     @Unique
     private MultiJobState schedulercore$state() {
+        if (schedulercore$jobs != null) {
+            return schedulercore$jobs;
+        }
+        // Built on first use, not as a field initialiser: this field would otherwise be constructed before
+        // schedulercore$view is, and that view is what the state reads through.
+        if (schedulercore$emptyState == null) {
+            schedulercore$emptyState = new MultiJobState(schedulercore$view);
+        }
+        return schedulercore$emptyState;
+    }
+
+    /** The registered state, created on first use - i.e. the first time this CPU is actually managed. */
+    @Unique
+    private MultiJobState schedulercore$ensureState() {
         if (schedulercore$jobs == null) {
             // Registered against this CPU's cluster so the /schedulercore commands can find it.
             schedulercore$jobs = new MultiJobState(schedulercore$view, cluster);
         }
         return schedulercore$jobs;
     }
+
+    /** Stand-in for a CPU the scheduler has never taken over; see {@link #schedulercore$state()}. */
+    @Unique
+    private MultiJobState schedulercore$emptyState;
 
     /** The accessor-backed view of job internals that {@link MultiJobState} reads through. */
     @Unique
@@ -362,7 +393,7 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
 
             var job = schedulercore$createJob(plan, src);
             long totalAmount = plan.finalOutput() == null ? 0 : plan.finalOutput().amount();
-            state.add(job, plan.bytes(), totalAmount);
+            schedulercore$ensureState().add(job, plan.bytes(), totalAmount);
             cluster.updateOutput(plan.finalOutput());
             cluster.markDirty();
 
@@ -865,7 +896,7 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
             if (list.isEmpty()) {
                 return;
             }
-            var state = schedulercore$state();
+            var state = schedulercore$ensureState();
             int restored = 0;
             for (int i = 0; i < list.size(); i++) {
                 var entry = list.getCompound(i);
@@ -884,8 +915,7 @@ public abstract class MixinCraftingCpuLogic implements SchedulerScreenBridge {
                 }
                 // The restore call above has already registered the job's link with the crafting service -
                 // that is part of why AE2's own NBT constructor is used rather than a hand-rolled reader.
-                state.addRestored(entry.getLong("id"), job, entry.getLong("reserved"), out.amount());
-                restored++;
+                state.addRestored(entry.getLong("id"), job, entry.getLong("reserved"), out.amount());                restored++;
             }
             if (restored > 0) {
                 schedulercore$refreshMonitor();
