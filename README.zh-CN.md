@@ -74,7 +74,7 @@ AE2 的合成 CPU 一次只能接一个订单。本模组增加一个 **调度�
 
 ## 环境要求
 
-| | 1.21.1 线 —— 1.0.5 | 1.20.1 线 —— 1.0.0 |
+| | 1.21.1 线 —— 1.1.0 | 1.20.1 线 —— 1.0.0 |
 |---|---|---|
 | Minecraft | 1.21.1 | 1.20.1 |
 | 加载器 | NeoForge 21.1.x（构建于 21.1.250） | Forge 47.4.x（构建于 47.4.10）。同一份构建也能跑 NeoForge 47.1.x——AE2 在 1.20.1 上就是一个 jar 同时标 forge/neoforge。 |
@@ -96,7 +96,7 @@ AE2 的合成 CPU 一次只能接一个订单。本模组增加一个 **调度�
 
 ```powershell
 ./gradlew build                 # 构建两个目标；各自的 jar 落在自己的 build/libs/
-./gradlew :mc1_21_1:build       # schedulercore-mc1.21.1-1.0.6.jar
+./gradlew :mc1_21_1:build       # schedulercore-mc1.21.1-1.1.0.jar
 ./gradlew :mc1_20_1:build       # schedulercore-mc1.20.1-1.0.0.jar，已重混淆到 SRG（Forge 运行期名字）；
                                 # 未混淆的开发版留在该目标的 build/devlibs/
 ./gradlew :mc1_21_1:test        # L1 纯逻辑断言，很快，不需要 Minecraft
@@ -122,7 +122,7 @@ AE2 的合成 CPU 一次只能接一个订单。本模组增加一个 **调度�
 
 | 目标 | 版本属性 | 产物文件名 | 输出目录 |
 |---|---|---|---|
-| `:mc1_21_1` | `mod_version`（1.0.6） | `schedulercore-mc1.21.1-1.0.6.jar` | `mc1_21_1/build/libs/` |
+| `:mc1_21_1` | `mod_version`（1.1.0） | `schedulercore-mc1.21.1-1.1.0.jar` | `mc1_21_1/build/libs/` |
 | `:mc1_20_1` | `mod_version_1_20_1`（1.0.0） | `schedulercore-mc1.20.1-1.0.0.jar` | `mc1_20_1/build/libs/` —— **发布用这个** |
 
 > **1.20.1 会产出两个 jar，只有一个能发。** Forge 运行期按 SRG 名字解析成员，所以插件会把归档重混淆，

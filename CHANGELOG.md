@@ -63,7 +63,7 @@ order looks like a slow machine, and the crafting-status screen showed nothing t
 
 **A second line: Minecraft 1.20.1.** The same scheduler, built for Forge 47.4.x — and for NeoForge 47.1.x, since
 AE2 ships one jar tagged for both on this Minecraft version — against AE2 15.4.x. This is that line's first
-release, so it starts at 1.0.0 while the 1.21.1 line is at 1.0.5; the two are numbered independently because a
+release, so it starts at 1.0.0 while the 1.21.1 line is at 1.1.0; the two are numbered independently because a
 Minecraft generation is its own support window.
 
 ### Added

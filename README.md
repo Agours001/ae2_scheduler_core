@@ -75,7 +75,7 @@ Splitting the per-tick budget between jobs as tokens is explicitly forbidden her
 
 ## Requirements
 
-| | 1.21.1 line — 1.0.5 | 1.20.1 line — 1.0.0 |
+| | 1.21.1 line — 1.1.0 | 1.20.1 line — 1.0.0 |
 |---|---|---|
 | Minecraft | 1.21.1 | 1.20.1 |
 | Loader | NeoForge 21.1.x (built against 21.1.250) | Forge 47.4.x (built against 47.4.10). The same build also runs on NeoForge 47.1.x, since AE2 ships one jar tagged for both on this Minecraft version. |
@@ -99,7 +99,7 @@ Nothing needs to be downloaded by hand — Gradle resolves everything, including
 
 ```powershell
 ./gradlew build                 # both targets; each jar lands in its own build/libs/
-./gradlew :mc1_21_1:build       # schedulercore-mc1.21.1-1.0.6.jar
+./gradlew :mc1_21_1:build       # schedulercore-mc1.21.1-1.1.0.jar
 ./gradlew :mc1_20_1:build       # schedulercore-mc1.20.1-1.0.0.jar, reobfuscated to SRG (Forge's runtime names);
                                 # the un-obfuscated development copy is kept in that target's build/devlibs/
 ./gradlew :mc1_21_1:test        # L1 pure-logic assertions - fast, no Minecraft needed
@@ -127,7 +127,7 @@ its own property in `gradle.properties` and changing one never moves the other:
 
 | Target | Version property | Archive name | Output |
 |---|---|---|---|
-| `:mc1_21_1` | `mod_version` (1.0.6) | `schedulercore-mc1.21.1-1.0.6.jar` | `mc1_21_1/build/libs/` |
+| `:mc1_21_1` | `mod_version` (1.1.0) | `schedulercore-mc1.21.1-1.1.0.jar` | `mc1_21_1/build/libs/` |
 | `:mc1_20_1` | `mod_version_1_20_1` (1.0.0) | `schedulercore-mc1.20.1-1.0.0.jar` | `mc1_20_1/build/libs/` — **ship this one** |
 
 > **1.20.1 produces two jars and only one of them is shippable.** Forge resolves members by SRG name at
