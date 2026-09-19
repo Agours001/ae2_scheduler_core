@@ -66,22 +66,17 @@ Minecraft generation is its own support window.
   the block and item models resolve to nothing, and the recipes never load. NeoForge 21.1 supplies the equivalent
   itself, which is why the 1.21.1 target has never needed one — and why this failure can only show up on this
   line. Found on a real 1.20.1 client with AE2 alone and on ATM9.
-- **This line's own block textures, modelled on AE2's co-processing unit.** Both looks are now built on
+- **This line's own block textures, built from AE2's co-processing unit.** Both looks are now taken from
   AE2 15.4.10's own crafting-unit textures, and they live in this target's resource set rather than in
   `common/`, because the 1.21.1 line's textures are drawn against that generation's AE2 and must not move.
-  AE2's own language for these blocks is "the same grey frame, with the middle carrying the block's colour" —
-  the crafting unit's middle is grey, the co-processing unit's is a solid purple square — and this block now
-  follows it: the unformed face is AE2's `block/crafting/unit` frame with its grey field in flat theme colour,
-  and the linked face is AE2's dark crafting-cube base with the **co-processing unit's** emissive band,
-  pixel for pixel, recoloured from its purple ramp onto the mod's teal one. The previous band was a recoloured
-  crafting *storage* band, which is a different pattern and did not match the parts around it.
-  Every one of its pixels, transparent ones included, is now mapped from the co-processing unit's own purple
-  ramp onto the mod's teal one, with each pixel keeping its original alpha. AE2 writes its transparent pixels
-  as the *dark end of the block's own colour* — the accelerator's are `#9900CC` / `#AC00E5` / `#BF00FF` at
-  alpha 0, with white only on the outermost ring — and that is what makes mipmapping average to the block's
-  own hue. The old band carried a recolour's leftover blue in those pixels, so at range the whole face
-  blended to blue; replacing that with plain white only moved the problem, because an average of white is a
-  white block. **The scheduler core item is untouched.**
+  The unformed face **is** the co-processing unit's texture with its purple pixels remapped onto the mod's
+  teal ramp and everything else copied through, so the silhouette, the frame and the shading are AE2's own
+  rather than a shape guessed from a brightness threshold — which is what the first attempt did, and why it
+  did not read as the part next to it. The linked face is the same unit's emissive band in the same teal,
+  drawn over AE2's dark crafting-cube shell with the shell **baked into the texture**: two earlier attempts
+  put the colour in the band's transparent pixels instead, and since those pixels are what mipmapping
+  averages, the whole face came out blue and then white. Baking the shell in means the layer carries a
+  complete, correct face whatever the renderer does with alpha. **The scheduler core item is untouched.**
 
 ### Notes
 
