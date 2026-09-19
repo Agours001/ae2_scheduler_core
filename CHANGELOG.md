@@ -4,7 +4,44 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.5] - 2026-09-19
+## [1.0.0] · Minecraft 1.20.1 — 2026-09-19
+
+**A second line: Minecraft 1.20.1.** The same scheduler, built for Forge 47.4.x — and for NeoForge 47.1.x, since
+AE2 ships one jar tagged for both on this Minecraft version — against AE2 15.4.x. This is that line's first
+release, so it starts at 1.0.0 while the 1.21.1 line is at 1.0.5; the two are numbered independently because a
+Minecraft generation is its own support window.
+
+### Added
+
+- **The 1.20.1 target**, built from the same `common/` sources: its own entry point, block and items, client
+  models written against this generation's model API, the in-game guide, and its own mod metadata (`mandatory =
+  true` dependencies, AE2 `[15.4.0,)`, Forge `[47.1.3,)` — AE2's own floor, so this mod never demands a newer
+  Forge than its dependency does).
+- **The grid-node capability is attached rather than registered on this generation.** Forge 1.20.1's
+  `RegisterCapabilitiesEvent` can only declare capability *types*, and AE2 15.x resolves the node host through
+  the capability (`GridHelper` asks the block entity) while none of AE2's block entities implement
+  `ICapabilityProvider`. Without the attach, the scheduler core would still see its neighbours and light up,
+  while nothing could connect *towards* it — the silent "split CPU" failure.
+- **MixinExtras is bundled inside the jar.** Neither Forge 1.20.1 nor AE2 15.4.10 provides it, and the hook that
+  adds the per-order rows into AE2's own CPU set is a MixinExtras `@WrapOperation` — the form that composes with
+  another addon doing the same thing instead of silently overwriting it.
+
+### Notes
+
+- **No freeze feature on this line.** AE2 never gained crafting-job suspend below 19.2.16, so this generation has
+  no flag and no screen button: the scheduler treats every order as runnable, which is exactly what that
+  generation means. Everything else — one job per tick, per-order rows, cancel, the CPU row's totals, save and
+  restore — is the same shared code as the 1.21.1 line.
+- **What the 1.20.1 acceptance covered.** The target builds and its jar is reobfuscated to SRG for Forge's
+  runtime names; a dev server reaches "Done" with every shared mixin applied (a missing target or descriptor is
+  a fatal error at that point, which is the same check that caught the AE2 19.2.15 incompatibility on the other
+  line); the block, its block entity and its capability work — a crafting CPU multiblock containing the
+  scheduler core block forms; the client-only classes stay off a dedicated server; the in-game guide registers.
+  **Not covered yet:** an order-level run on this generation (two orders sharing one CPU, the per-order rows),
+  which needs an acceptance rig that this target does not have. That behaviour is covered by the shared code's
+  L1 tests and by the 1.21.1 rig, and every AE2 member it touches was checked against the real 15.4.10 jar.
+
+## [1.0.5] — 2026-09-19
 
 **One shared core, two Minecraft generations — and the AE2 version this mod needs is now stated instead of
 assumed.** The scheduling logic and the AE2-facing mixins moved into `common/`, which each target compiles with
