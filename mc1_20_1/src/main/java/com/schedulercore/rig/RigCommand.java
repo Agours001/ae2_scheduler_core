@@ -139,7 +139,8 @@ public final class RigCommand {
     private static final ResourceLocation ASSEMBLER_BLOCK = new ResourceLocation("ae2", "molecular_assembler");
     private static final ResourceLocation INTERFACE_BLOCK = new ResourceLocation("ae2", "interface");
     private static final ResourceLocation DRIVE_BLOCK = new ResourceLocation("ae2", "drive");
-    private static final ResourceLocation CELL_ITEM = new ResourceLocation("ae2", "16k_item_cell");
+    /** Registry name checked against AE2 15.4.10's own lang file; the obvious "16k_item_cell" does not exist. */
+    private static final ResourceLocation CELL_ITEM = new ResourceLocation("ae2", "item_storage_cell_16k");
 
     /**
      * Builds the rig: a powered grid with one scheduler-led CPU and one pattern provider.
@@ -421,8 +422,11 @@ public final class RigCommand {
         if (grid == null) {
             return;
         }
-        ICraftingCPU target = cluster;
-        var outcome = grid.getCraftingService().submitJob(result, null, target, false, source);
+        // Submit the way a player's terminal does: no explicit CPU, so AE2 selects one. Passing this CPU
+        // explicitly (as the 1.21.1 rig does) takes a path that does NOT reach CraftingCpuLogic.trySubmitJob
+        // on this generation, so the scheduler never sees the job and vanilla takes it - measured here as
+        // "admitted by vanilla, then CPU_BUSY for the second order".
+        var outcome = grid.getCraftingService().submitJob(result, null, null, false, source);
         if (outcome.successful()) {
             SchedulerCore.LOG.info("[schedulercore] rig: submitted an order for {} x {}", amount, OUTPUT_ITEM);
         } else {
