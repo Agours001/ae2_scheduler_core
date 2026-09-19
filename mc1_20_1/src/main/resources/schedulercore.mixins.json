@@ -3,6 +3,7 @@
   "minVersion": "0.8.5",
   "package": "com.schedulercore.mixin",
   "compatibilityLevel": "JAVA_17",
+  "refmap": "schedulercore.refmap.json",
   "plugin": "com.schedulercore.mixin.SchedulerCoreMixinPlugin",
   "injectors": {
     "defaultRequire": 1

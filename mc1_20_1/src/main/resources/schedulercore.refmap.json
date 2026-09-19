@@ -1,0 +1,20 @@
+{
+  "mappings": {
+    "com/schedulercore/mixin/MixinCraftingStatusMenu": {
+      "broadcastChanges": "Lappeng/menu/me/crafting/CraftingStatusMenu;m_38946_()V"
+    },
+    "com/schedulercore/mixin/MixinCraftingCPUMenu": {
+      "removed": "Lappeng/menu/me/crafting/CraftingCPUMenu;m_6877_(Lnet/minecraft/world/entity/player/Player;)V"
+    }
+  },
+  "data": {
+    "searge": {
+      "com/schedulercore/mixin/MixinCraftingStatusMenu": {
+        "broadcastChanges": "Lappeng/menu/me/crafting/CraftingStatusMenu;m_38946_()V"
+      },
+      "com/schedulercore/mixin/MixinCraftingCPUMenu": {
+        "removed": "Lappeng/menu/me/crafting/CraftingCPUMenu;m_6877_(Lnet/minecraft/world/entity/player/Player;)V"
+      }
+    }
+  }
+}

@@ -1,67 +1,205 @@
-// Target: Minecraft 1.20.1 — Forge 47.4.x. AE2 ships one jar tagged for both Forge and NeoForge on this
-// Minecraft version (verified on Modrinth: version 15.3.6 lists "forge,neoforge" against a single file), and
-// NeoForge 1.20.1 loads Forge 1.20.1 mods, so this one build serves both loaders.
+// Target: Minecraft 1.20.1 / Forge 47.4.x — and NeoForge 47.1.x, since AE2 ships one jar tagged for both on
+// this Minecraft version.
 //
-// STATUS: NOT WIRED UP. `settings.gradle` does not include this project yet, so nothing here is built.
-// What is already true:
-//   * `common/` is split so that this target can compile it: the two generation-specific capabilities reach
-//     the shared code through `NbtSupport` and `SuspendSupport` instead of being referenced directly.
-//   * the shared mixin list is known to exist in AE2 15.4.9/15.4.10 - checked member by member against the
-//     real jars, including the whole craftiing-status CPU list mechanism that the per-order rows need.
-//   * the 1.20.1 persistence hook is written (see src/main/java .../MixinCraftingCpuLogicPersistence.java):
-//     it is the one mixin whose target signature differs, and it is small.
+// <h2>Why this uses ModDevGradle's legacy plugin and not ForgeGradle</h2>
 //
-// What is left, in the order it has to be done:
-//   1. this build script: ForgeGradle 6 replaces ModDevGradle, and the mappings/run configuration differ.
-//      Nothing here has been executed yet - the toolchain has to resolve before anything else can be checked.
-//   2. the loader glue for this generation: `SchedulerCore` (Forge event bus, `RegistryObject` instead of
-//      NeoForge's `DeferredItem`/`DeferredBlock`), the capability registration (classic `ICapabilityProvider`
-//      instead of NeoForge's `RegisterCapabilitiesEvent`; AE2 15.x has no `AECapabilities` class at all),
-//      and the per-generation block/item/unit-type classes.
-//   3. the client model loaders: the geometry API this mod uses (`IUnbakedGeometry`, `IGeometryBakingContext`)
-//      does not exist in 1.20.1, so that code has to be rewritten against `IUnbakedModel`/`IModelLoader`.
-//   4. `SuspendSupport` is deliberately left uninstalled here, because AE2 15.x has no crafting-job suspend:
-//      the screen has no such button, so there is nothing to wire. The shared scheduler treats every order as
-//      runnable, which is exactly what that generation does.
-//   5. the acceptance rig (`command/`, `measure/`) is not part of this target: it is dev tooling that would
-//      need porting to a much older AE2 dev API, and shipping it is not required for players.
+// ForgeGradle 6 is the historic toolchain for this generation, and a first attempt with it failed at
+// configuration with
+//   java.lang.ClassCastException: class jdk.internal.loader.ClassLoaders$PlatformClassLoader cannot be cast
+//   to class java.net.URLClassLoader   ("Could not configure services using BuildScopeCompileServices.configure()")
+// That turned out NOT to be ForgeGradle's fault: the same failure happens with no plugin applied at all when
+// Gradle itself runs on this machine's `C:\Program Files\Java\jdk-17`, and it disappears when Gradle runs on
+// jdk-21. **So this build must be run with Gradle on a newer JDK** (the `java { toolchain }` below still
+// compiles to 17, which is what 1.20.1 wants). The failure is in Gradle's own service wiring, so no build
+// script can work around it.
+//
+// With that understood, the legacy plugin is still the better route: `net.neoforged.moddev.legacyforge` comes
+// from the same project as the plugin the 1.21.1 target uses and is documented as support for "MinecraftForge
+// and Vanilla Minecraft versions 1.17 up to 1.20.1", so both targets are built by one toolchain at one
+// version instead of two unrelated ones.
+//
+// Two things this generation forces that the 1.21.1 target does not have to care about:
+//   * the jar must be reobfuscated to SRG (Forge used SRG names as its intermediary): the plugin does this for
+//     the `jar` task automatically, keeps the unobfuscated jar in `build/devlibs` and puts the shippable one in
+//     `build/libs`;
+//   * mixin injection points declared with official names need a refmap, hence the mixin block and the
+//     `MixinConfigs` manifest attribute below.
+//
+// This project owns everything specific to this generation:
+//   * the mod entry point and registry glue (`SchedulerCore`, the block/item, the unit type) — Forge's
+//     `DeferredRegister`/`RegistryObject`, not NeoForge's
+//   * the capability registration: this generation has no `AECapabilities`; AE2 15.x exposes Forge
+//     `Capability` objects through `appeng.capabilities.Capabilities`
+//   * the client model loaders, written against this generation's model API (the `IUnbakedGeometry` API the
+//     1.21.1 target uses does not exist here)
+//   * the one mixin whose target signature differs (`MixinCraftingCpuLogicPersistence`)
+//   * the mod metadata and the mixin config
+//
+// Two things it deliberately does NOT own:
+//   * crafting-job suspend. AE2 gained it in 19.2.16, a 1.21.1-era release, so this generation has neither the
+//     flag nor the screen button. The suspend mixins and their accessor are simply absent from this target,
+//     and `SuspendSupport` is left uninstalled — the shared scheduler then treats every order as runnable,
+//     which is exactly what this generation means. That is what the per-target split in `common/` is for.
+//   * the acceptance rig (`command/`, `measure/`): dev tooling that would need porting to a much older AE2
+//     dev API, and nothing players need.
+//
+// Everything else is compiled from `../common/src/main/java`.
+//
+// WHAT REMAINS BEFORE THIS TARGET COMPILES (audited against the real AE2 15.4.10 and Forge 1.20.1 jars):
+//   * the loader glue `common/` already imports but which does not exist yet on this side: `SchedulerCore`
+//     (`MOD_ID`, `LOG`, the registrations, `SCHEDULER_CORE_BLOCK_ITEM`), `block/SchedulerCoreBlock`,
+//     `block/SchedulerCoreBlockItem`, `item/SchedulerCoreItem`, `SchedulerUnitType` and
+//     `logic/ClusterUnits.hasSchedulerCore`. Written against Forge's `DeferredRegister`/`RegistryObject`, and
+//     with AE2 15.x's `appeng.capabilities.Capabilities` (there is no `AECapabilities` on this generation).
+//   * the NBT seam for this generation. 15.4.10's `ExecutingCraftingJob.writeToNBT()` takes NO argument (19.2.x
+//     takes a registry lookup), so this target needs its own accessor plus a `NbtSupport` implementation.
+//     Without them `NbtSupport` stays uninstalled and saving silently degrades to a logged exception - the
+//     highest-severity trap found by the audit.
+//   * the client model loaders, rewritten for `net.minecraftforge.client.model.geometry.*` (the
+//     `IUnbakedGeometry` API of 1.21.1 does not exist here), with `@Mod.EventBusSubscriber(bus = Bus.MOD, ...)`
+//     because Forge's default bus is FORGE. No asset or JSON change is needed.
+//   * one genuine source-compatible delta to respect: `IPatternDetails.getOutputs()` is `GenericStack[]` on this
+//     generation and `List<GenericStack>` on 1.21 - the shared code only iterates it, so it must never be
+//     indexed or asked for `.size()`.
+// The rest of the shared AE2 surface was checked member by member and matches with identical descriptors,
+// including every `@Inject`/`@Accessor`/`@Invoker`/`@Shadow` target, and `common/` uses no Minecraft API that
+// does not exist in 1.20.1.
 plugins {
     id 'java'
-    // id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'net.neoforged.moddev.legacyforge' version '2.0.146'
 }
 
-// group = mod_group
-// version = mod_version
-// base {
-//     archivesName = "${mod_id}-mc1.20.1"
-// }
+group = mod_group
+version = mod_version_1_20_1
+base {
+    // Gradle appends the project version, so this only adds the Minecraft version:
+    // schedulercore-mc1.20.1-1.0.0.jar. Two targets in one repository means the name has to say which.
+    archivesName = "${mod_id}-mc1.20.1"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+sourceSets {
+    main {
+        java.srcDir '../common/src/main/java'
+        resources.srcDir '../common/src/main/resources'
+    }
+}
+
+legacyForge {
+    // MinecraftForge 1.20.1, "recommended" build from https://files.minecraftforge.net/.
+    version = "1.20.1-${forge_version_1_20_1}"
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+            // This target's smoke test: `gradlew :mc1_20_1:runServer` has to reach "Done" with no mixin or
+            // registry errors.
+            programArgument '--nogui'
+        }
+        configureEach {
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+// Forge 1.20.1 runs SRG member names while this code is written with official ones, so the injection points
+// that name a member *Minecraft itself declares* need a refmap; the manifest attribute is what makes the
+// loader read the mixin config at all.
 //
-// java {
-//     toolchain {
-//         languageVersion = JavaLanguageVersion.of(17)
-//     }
-// }
-//
-// sourceSets {
-//     main {
-//         java.srcDir '../common/src/main/java'
-//         resources.srcDir '../common/src/main/resources'
-//     }
-// }
-//
-// minecraft {
-//     mappings channel: 'official', version: '1.20.1'
-//     runs {
-//         server { ... }
-//     }
-// }
-//
-// dependencies {
-//     minecraft 'net.minecraftforge:forge:1.20.1-47.4.13'
-//     compileOnly "maven.modrinth:XxWD5pD3:${ae2_version_1_20_1}"   // AE2 15.4.x (Forge flavour)
-//     compileOnly "maven.modrinth:Ck4E7v7R:${guideme_version_1_20_1}"
-// }
-//
-// processResources {
-//     filesMatching(['META-INF/mods.toml']) { expand ... }
-// }
+// The refmap is checked in (`src/main/resources/schedulercore.refmap.json`) instead of being generated, and
+// that is deliberate. The Mixin annotation processor is able to map Minecraft members, but it treats every
+// `@Inject` target as if it were one: this mod's hooks name AE2's own members (`tickCraftingLogic`, `getStored`,
+// `getPendingOutputs`, ...), which no mapping file describes and which must NOT be remapped, and the processor
+// fails the build over each of them, one error per hook. There is no option to make it tolerate that (checked
+// its SupportedOptions). What it could map, it did map correctly - the checked-in file is exactly its output:
+// three MC-inherited members, `broadcastChanges` -> `m_38946_` in two hooks and `removed` -> `m_6877_`. So the
+// file is small and stable, and it only has to grow when a new hook targets a method Minecraft declares.
+jar {
+    manifest.attributes([
+            "MixinConfigs": "${mod_id}.mixins.json"
+    ])
+}
+
+repositories {
+    mavenCentral()
+    // Modrinth's Maven service, as on the 1.21.1 target: AE2's own Maven has no DNS record, so a plain
+    // `gradlew build` has to work without anything fetched by hand. On this Minecraft version AE2 publishes
+    // separate Forge and Fabric versions, and the coordinate below resolves to the Forge one (verified by
+    // inspecting the downloaded jar: it has META-INF/mods.toml and no fabric.mod.json).
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
+}
+
+dependencies {
+    // MixinExtras is NOT available on this generation: Forge 1.20.1 does not bundle it and neither does AE2
+    // 15.4.10 (checked both jars: no com/llamalad7/* entries, no META-INF/jarjar). The shared
+    // `MixinCraftingService` hook is a MixinExtras `@WrapOperation`, and that is load-bearing - it wraps AE2's
+    // own `ImmutableSet.Builder` so an addon that re-builds the same builder cannot overwrite the per-order
+    // rows - so the library is bundled. `jarJar` ships it inside the mod; `additionalRuntimeClasspath` is what
+    // puts it on the classpath of the dev runs for Minecraft 1.21.8 and older (ModDevGradle's README).
+    jarJar(implementation('io.github.llamalad7:mixinextras-forge:0.4.1')) {
+        version {
+            strictly '[0.4.0,)'
+            prefer '0.4.1'
+        }
+    }
+    additionalRuntimeClasspath 'io.github.llamalad7:mixinextras-forge:0.4.1'
+
+    // Mod dependencies go through the `mod*` configurations, which remap them from SRG to official names —
+    // the plain ones would be unusable for compilation here. AE2 and GuideME are needed to compile and to run
+    // in dev; players get the real mods from the game instance.
+    modCompileOnly "maven.modrinth:XxWD5pD3:${ae2_version_1_20_1}"          // Applied Energistics 2 (Forge)
+    modRuntimeOnly "maven.modrinth:XxWD5pD3:${ae2_version_1_20_1}"
+    modCompileOnly "maven.modrinth:Ck4E7v7R:${guideme_version_1_20_1}"      // GuideME
+    modRuntimeOnly "maven.modrinth:Ck4E7v7R:${guideme_version_1_20_1}"
+
+    // Same escape hatch as the 1.21.1 target: jars in this project's libs/ take precedence, and that is also
+    // how another addon is tested against this one. libs/*.jar is gitignored.
+    def localLibs = fileTree(dir: 'libs', include: ['*.jar'])
+    if (!localLibs.isEmpty()) {
+        modCompileOnly localLibs
+        modRuntimeOnly localLibs
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+}
+
+processResources {
+    def expandProps = [
+            mod_id                     : mod_id,
+            mod_name                   : mod_name,
+            mod_version_1_20_1         : mod_version_1_20_1,
+            mod_authors                : mod_authors,
+            mod_description            : mod_description,
+            mod_license                : mod_license,
+            // Runtime ranges come from their own properties, NOT from the development versions.
+            forge_dependency_range     : forge_dependency_range,
+            ae2_dependency_range_1_20_1: ae2_dependency_range_1_20_1
+    ]
+    inputs.properties(expandProps)
+    filesMatching(['META-INF/mods.toml']) {
+        expand expandProps
+    }
+}

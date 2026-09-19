@@ -26,7 +26,15 @@ pluginManagement {
     }
 }
 
+// The 1.20.1 target asks for a Java 17 toolchain (to run the Minecraft artifact creation, and to compile the
+// classes 1.20.1 expects), while the 1.21.1 target uses 21. Gradle has to be able to find one: this plugin
+// makes it discover locally installed JDKs and provision a matching one if there is none. It has to sit above
+// the first non-plugin statement below, which is a Gradle rule for settings files.
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+}
+
 rootProject.name = 'ae2_scheduler_core'
 
 include 'mc1_21_1'
-// include 'mc1_20_1'
+include 'mc1_20_1'
