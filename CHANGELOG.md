@@ -4,6 +4,42 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] · Minecraft 1.21.1 — 2026-09-20
+
+**Two defects found by a field report, both of which could starve an order on a CPU that was working
+perfectly.** Neither is a crash and neither loses items, which is exactly why they survived 1.0.5: a starved
+order looks like a slow machine, and the crafting-status screen showed nothing that distinguished the two.
+
+### Fixed
+
+- **A registered machine is a reason to wait, not proof of a dead end.** When an order pushed nothing, the
+  scheduler asked why, and it counted a provider as busy this order's fault whenever `isBusy()` said the
+  provider was free — on the theory that a free provider refusing work must be refusing *because of this
+  order's inputs*. That theory is wrong: the provider is the *pattern provider*, and `isBusy()` says nothing
+  about the machinery behind it, so a molecular assembler whose internal queue is full refuses the pattern
+  while the provider in front of it is perfectly idle. Every such turn was classified `FUTILE`, the slice
+  ended at once, and the other order's once-per-two-ticks pushes kept that machine's queue topped up for
+  ever. Measured on a real machine: **346 consecutive `FUTILE` turns for one order while the other advanced**,
+  with the starved order's `waitingFor` ledger still at zero because it never got a pattern in at all;
+  cancelling the other order resumed it immediately. A registered provider is now `TRANSIENT` — the machine
+  is still working for this order, so the order keeps its turn — and only "no provider is registered at all"
+  is treated as a dead end.
+- **A query must not register scheduler state for a CPU this mod does not manage.** `schedulercore$state()`
+  created and registered a state on first use, and the crafting-status query path called it. So merely
+  *looking* at a CPU that had no scheduler core — from the status screen, or from any of the item-table /
+  elapsed-time / waiting-for reads — enrolled that CPU in the scheduler, and it then paid for a state it
+  never asked for. The getter is now side-effect free (it answers from a shared, unregistered empty state)
+  and the one place that legitimately needs a registered state, admission, asks for it explicitly.
+
+### Notes
+
+- **The per-tick trace is off unless asked for** (`/schedulercore trace on`). It was defaulted on inside the
+  1.20.1 target only, to read a field report from a player's instance; it writes one INFO line per CPU per
+  tick on the server thread, so it must never ship on.
+- **What the 1.21.1 acceptance re-covered.** Both orders advancing equally on a shared CPU (each −12 per
+  3 s sample), four rows correct, and no `FUTILE` storm, after the provider-refusal fix; and the 1.21.1 rig
+  re-run after the state-registration fix.
+
 ## [1.0.0] · Minecraft 1.20.1 — 2026-09-19
 
 **A second line: Minecraft 1.20.1.** The same scheduler, built for Forge 47.4.x — and for NeoForge 47.1.x, since
@@ -42,9 +78,18 @@ Minecraft generation is its own support window.
   a fatal error at that point, which is the same check that caught the AE2 19.2.15 incompatibility on the other
   line); the block, its block entity and its capability work — a crafting CPU multiblock containing the
   scheduler core block forms; the client-only classes stay off a dedicated server; the in-game guide registers.
-  **Not covered yet:** an order-level run on this generation (two orders sharing one CPU, the per-order rows),
-  which needs an acceptance rig that this target does not have. That behaviour is covered by the shared code's
-  L1 tests and by the 1.21.1 rig, and every AE2 member it touches was checked against the real 15.4.10 jar.
+  Order-level runs were then done on real 1.20.1 clients, driven by **this target's own acceptance rig**
+  (`/schedulercore rig build|pattern|craft|state|probe|trace`): several orders sharing one CPU, the per-order
+  rows, per-order cancel, and the CPU's own totals. Every AE2 member the shared code touches was checked
+  against the real 15.4.10 jar, and the two fixes recorded under 1.0.6 are in this release too.
+- **Known behaviour, and not this mod's.** On this generation an order that has to craft its own intermediates
+  finishes **all** of them before it produces the first final item — an order for 100 crafting tables with no
+  planks in the network makes every plank before it makes a table, so the order's "remaining" count sits still
+  for the whole intermediate stage. That is AE2 15.4.10's own dispatch order, not the scheduler's: measured by
+  running the same order on a CPU **with no scheduler core** (so the mod defers to vanilla) in the same
+  session, where the pattern table reads exactly the same way (`橡木木板x4(n) > 工作台x1(100)`) and the count
+  behaves identically. The scheduler does make it *look* worse, because two orders sharing a CPU each get the
+  tick every other tick, which doubles how long that stage lasts.
 
 ## [1.0.5] — 2026-09-19
 
