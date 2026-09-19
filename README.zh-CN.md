@@ -92,13 +92,20 @@ AE2 的合成 CPU 一次只能接一个订单。本模组增加一个 **调度�
 
 ```powershell
 ./gradlew build                 # 构建两个目标；各自的 jar 落在自己的 build/libs/
-./gradlew :mc1_21_1:build       # schedulercore-mc1.21.1-1.0.5.jar
+./gradlew :mc1_21_1:build       # schedulercore-mc1.21.1-1.0.6.jar
 ./gradlew :mc1_20_1:build       # schedulercore-mc1.20.1-1.0.0.jar，已重混淆到 SRG（Forge 运行期名字）；
                                 # 未混淆的开发版留在该目标的 build/devlibs/
 ./gradlew :mc1_21_1:test        # L1 纯逻辑断言，很快，不需要 Minecraft
-./gradlew :mc1_21_1:runServer   # 无头开发服务器（配合下面的装置指令）
-./gradlew :mc1_20_1:runServer   # 1.20.1 的无头开发服务器（该目标还没有装置）
+./gradlew :mc1_21_1:runServer -PwithProbes   # 无头开发服务器（配合下面的装置指令）
+./gradlew :mc1_20_1:runServer -PwithProbes   # 1.20.1 的无头开发服务器
 ```
+
+> **`-PwithProbes` 决定 rig 是否进 jar。** 验收与测量指令是**开发期工具**：源码放在各目标的
+> `src/probes/java`，只有给了这个属性，构建才会把该目录加进 source set。所以直接 `build`
+> 出来的 jar **只含功能代码，而且完全没有 `/schedulercore` 指令**。探针用 `@EventBusSubscriber`
+> 自行注册，这正是功能代码能在完全不提及它们的前提下编译通过的原因。去掉探针后：1.21.1 从
+> 151,449 降到 95,044 字节，1.20.1 从 292,592 降到 279,363。凡是需要搭装置、跑测量、复现现场
+> 报告的场合，都要加 `-PwithProbes`。
 
 > **不管构建哪个目标，Gradle 自身都要跑在 JDK 21 上。** 各目标通过 toolchain 编译到自己的 Java 版本
 > （`mc1_21_1` 用 21，`mc1_20_1` 用 17），但 Gradle 不能跑在本机的 JDK 17 上：它会在装配自身服务时失败，

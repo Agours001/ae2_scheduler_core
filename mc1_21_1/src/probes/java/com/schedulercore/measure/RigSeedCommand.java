@@ -18,6 +18,9 @@ import appeng.blockentity.crafting.CraftingBlockEntity;
 
 import com.schedulercore.command.SchedulerRigCommand;
 
+import com.schedulercore.SchedulerCore;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 /**
@@ -33,11 +36,13 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
  * <p>Deliberately a bare diagnostic: no state, no scheduling, and it only ever touches the CPU inventory,
  * so it cannot affect what the scheduler decides.
  */
+@EventBusSubscriber(modid = SchedulerCore.MOD_ID)
 public final class RigSeedCommand {
 
     private RigSeedCommand() {
     }
 
+    @SubscribeEvent
     public static void register(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
         dispatcher.register(Commands.literal("schedulercore")

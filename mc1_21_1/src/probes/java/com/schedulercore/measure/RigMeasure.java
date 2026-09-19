@@ -27,6 +27,9 @@ import appeng.blockentity.crafting.PatternProviderBlockEntity;
 
 import com.schedulercore.command.SchedulerRigCommand;
 
+import com.schedulercore.SchedulerCore;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
@@ -51,6 +54,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  * returns; {@link #onServerTick} polls {@link Future#isDone()} and chains the next step. The server thread
  * is never blocked, and a plan that never arrives times out instead of hanging.
  */
+@EventBusSubscriber(modid = SchedulerCore.MOD_ID)
 public final class RigMeasure {
 
     /** One tick's observation of a running job. */
@@ -93,6 +97,7 @@ public final class RigMeasure {
     private RigMeasure() {
     }
 
+    @SubscribeEvent
     public static void register(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
         dispatcher.register(Commands.literal("schedulercore")
@@ -286,6 +291,7 @@ public final class RigMeasure {
 
     // ------------------------------------------------------------------ tick state machine
 
+    @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
         Run run = active;
         if (run == null || run.phase == Phase.DONE || run.phase == Phase.IDLE) {

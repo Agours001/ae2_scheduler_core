@@ -38,9 +38,10 @@ import appeng.me.helpers.MachineSource;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
-import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
 import com.schedulercore.SchedulerCore;
 import com.schedulercore.scheduler.MultiJobState;
@@ -68,7 +69,16 @@ import java.util.concurrent.Future;
  * <p><b>The plan must not be waited for on the server thread.</b> AE2 computes it on a worker thread whose
  * completion path itself needs the server thread, so a blocking {@code get()} in the command handler deadlocks
  * the whole server. The command only starts the calculation and {@link #onServerTick} submits it when done.
+ *
+ * <h2>Why this class registers itself</h2>
+ *
+ * <p>It lives in {@code src/probes/java}, which the build adds to the source set only when
+ * {@code -PwithProbes} is given, so a release jar carries no probe code at all. Nothing in the mod's
+ * functional half may name it, or the release build would not compile: the class therefore subscribes itself
+ * with {@code @Mod.EventBusSubscriber} and {@code @SubscribeEvent}, and is simply absent from a release jar.
+ * The entry point has no idea it exists.
  */
+@Mod.EventBusSubscriber(modid = SchedulerCore.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class RigCommand {
 
     /** Where the rig lives. Kept away from origin so it never lands on the world's spawn platform. */
@@ -103,6 +113,7 @@ public final class RigCommand {
     private RigCommand() {
     }
 
+    @SubscribeEvent
     public static void register(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
         dispatcher.register(Commands.literal("schedulercore")
@@ -126,11 +137,6 @@ public final class RigCommand {
                                 .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                         .executes(ctx -> probe(ctx.getSource(),
                                                 BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))));
-    }
-
-    public static void install() {
-        MinecraftForge.EVENT_BUS.addListener(RigCommand::register);
-        MinecraftForge.EVENT_BUS.addListener(RigCommand::onServerTick);
     }
 
     // ------------------------------------------------------------------ build
@@ -390,7 +396,8 @@ public final class RigCommand {
     }
 
     /** Submits the finished plan - never on the thread that started it, and never by blocking on it. */
-    private static void onServerTick(TickEvent.ServerTickEvent event) {
+    @SubscribeEvent
+    public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) {
             return;
         }

@@ -84,18 +84,10 @@ public final class SchedulerCore {
         BLOCK_ENTITIES.register(modBus);
         CREATIVE_TABS.register(modBus);
         modBus.addListener(SchedulerCore::registerCapabilities);
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS
-                .addListener(com.schedulercore.command.SchedulerRigCommand::register);
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS
-                .addListener(com.schedulercore.measure.RigMeasure::register);
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS
-                .addListener(com.schedulercore.measure.RigMeasure::onServerTick);
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS
-                .addListener(com.schedulercore.measure.RigCompare::register);
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS
-                .addListener(com.schedulercore.measure.RigCompare::onServerTick);
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS
-                .addListener(com.schedulercore.measure.RigSeedCommand::register);
+        // Nothing here mentions the acceptance rig. It lives in `src/probes/java`, which the build adds only
+        // with `-PwithProbes`, so a release jar carries no probe code - and since this class has to compile
+        // either way, the rig subscribes itself with `@EventBusSubscriber` and `@SubscribeEvent` rather than
+        // being installed from here. See the probe classes' own notes.
         // The in-game guide (GuideME, shipped by AE2). Data-only: pages live under
         // assets/schedulercore/ae2guide/ and the page front matter maps items to them.
         com.schedulercore.client.SchedulerCoreGuide.register();

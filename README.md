@@ -94,13 +94,21 @@ Nothing needs to be downloaded by hand — Gradle resolves everything, including
 
 ```powershell
 ./gradlew build                 # both targets; each jar lands in its own build/libs/
-./gradlew :mc1_21_1:build       # schedulercore-mc1.21.1-1.0.5.jar
+./gradlew :mc1_21_1:build       # schedulercore-mc1.21.1-1.0.6.jar
 ./gradlew :mc1_20_1:build       # schedulercore-mc1.20.1-1.0.0.jar, reobfuscated to SRG (Forge's runtime names);
                                 # the un-obfuscated development copy is kept in that target's build/devlibs/
 ./gradlew :mc1_21_1:test        # L1 pure-logic assertions - fast, no Minecraft needed
-./gradlew :mc1_21_1:runServer   # headless dev server (see the rig commands below)
-./gradlew :mc1_20_1:runServer   # headless dev server for 1.20.1 (that target has no rig yet)
+./gradlew :mc1_21_1:runServer -PwithProbes   # headless dev server (see the rig commands below)
+./gradlew :mc1_20_1:runServer -PwithProbes   # headless dev server for 1.20.1
 ```
+
+> **`-PwithProbes` is what puts the rig in the jar.** The acceptance and measurement commands are
+> development-only: their sources live in each target's `src/probes/java`, and the build adds that directory
+> to the source set only when the property is given. A plain `build` therefore ships functional code and
+> nothing else — **and has no `/schedulercore` commands at all**. The probes subscribe themselves with
+> `@EventBusSubscriber`, which is what lets the functional half compile without ever naming them. Dropping
+> them takes 1.21.1 from 151,449 to 95,044 bytes and 1.20.1 from 292,592 to 279,363. Use `-PwithProbes`
+> for anything that has to build a rig, measure a run, or reproduce a field report.
 
 > **Run Gradle itself on JDK 21, whichever target you build.** Each target compiles to its own Java version
 > through a toolchain (21 for `mc1_21_1`, 17 for `mc1_20_1`), but Gradle must not run on this machine's JDK 17:

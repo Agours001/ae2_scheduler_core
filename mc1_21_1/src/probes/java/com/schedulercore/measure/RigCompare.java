@@ -20,6 +20,9 @@ import appeng.blockentity.crafting.PatternProviderBlockEntity;
 
 import com.schedulercore.command.SchedulerRigCommand;
 
+import com.schedulercore.SchedulerCore;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
@@ -60,6 +63,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  * failure is <b>faster</b>, because that means the scheduler is amplifying throughput (I3) - and that is
  * exactly what granting the full budget every tick would do.
  */
+@EventBusSubscriber(modid = SchedulerCore.MOD_ID)
 public final class RigCompare {
 
     /** Ticks to wait for AE2's asynchronous planner before abandoning a leg. */
@@ -127,6 +131,7 @@ public final class RigCompare {
     private RigCompare() {
     }
 
+    @SubscribeEvent
     public static void register(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
         dispatcher.register(Commands.literal("schedulercore")
@@ -152,6 +157,7 @@ public final class RigCompare {
 
     // ------------------------------------------------------------------ tick state machine
 
+    @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
         var comparison = running;
         if (comparison == null || comparison.phase == Phase.DONE) {

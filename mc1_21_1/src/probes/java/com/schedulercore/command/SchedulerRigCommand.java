@@ -23,6 +23,8 @@ import appeng.core.definitions.AEItems;
 
 import com.schedulercore.SchedulerCore;
 
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 /**
@@ -60,6 +62,7 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
  * storage on the <b>near</b> block (the one touching the controller). If this comment and that method ever
  * disagree again, the method wins.
  */
+@EventBusSubscriber(modid = SchedulerCore.MOD_ID)
 public final class SchedulerRigCommand {
 
     /** Bottom-north-west corner the whole rig is laid out from. */
@@ -119,6 +122,7 @@ public final class SchedulerRigCommand {
         return INTERFACE;
     }
 
+    @SubscribeEvent
     public static void register(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
         dispatcher.register(Commands.literal("schedulercore")

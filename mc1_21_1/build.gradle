@@ -29,10 +29,19 @@ java {
     }
 }
 
+// The acceptance and measurement rig is development-only. Its sources live in `src/probes/java`, which is
+// added to the source set only when `-PwithProbes` is given, so a release jar carries no probe code at all -
+// and since nothing in the functional half names it, the release build compiles without it. The probes
+// subscribe themselves with `@EventBusSubscriber`, so nothing has to notice their absence.
+def withProbes = providers.gradleProperty('withProbes').isPresent()
+
 sourceSets {
     main {
         java.srcDir '../common/src/main/java'
         resources.srcDir '../common/src/main/resources'
+        if (withProbes) {
+            java.srcDir 'src/probes/java'
+        }
     }
     test {
         java.srcDir '../common/src/test/java'

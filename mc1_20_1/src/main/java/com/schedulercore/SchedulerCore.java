@@ -142,11 +142,10 @@ public final class SchedulerCore {
         // gained in 19.2.16 - a 1.21.1-era release - so this generation installs none and every order is
         // simply runnable. See ForgeSupport and, on the shared side, NbtSupport and SuspendSupport.
         ForgeSupport.install();
-        // The per-tick trace stays off unless someone asks for it with `/schedulercore trace on`. It exists
-        // for field reports - it prints, for the order that owns the tick, how much it pushed and, when it
-        // pushed nothing, whether waiting could help - but it writes one INFO line per CPU per tick on the
-        // server thread, so it must never be the default.
-        com.schedulercore.rig.RigCommand.install();
+        // Nothing here mentions the acceptance rig. It lives in `src/probes/java`, which the build adds only
+        // with `-PwithProbes`, so a release jar carries no probe code - and since this class must compile
+        // either way, the rig subscribes itself with `@Mod.EventBusSubscriber` instead of being installed from
+        // here. See RigCommand's class note.
         LOG.info("{} loaded: scheduler core block + component; multi-job time-slice scheduler is armed.",
                 MOD_ID);
     }

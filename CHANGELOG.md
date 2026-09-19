@@ -33,6 +33,15 @@ order looks like a slow machine, and the crafting-status screen showed nothing t
 
 ### Notes
 
+- **The acceptance and measurement rig no longer ships.** Its sources live in each target's
+  `src/probes/java` and the build adds them only with `-PwithProbes`, so a release jar carries functional
+  code and nothing else: this line's jar goes from **151,449 to 95,044 bytes (−37%)**, and 1.20.1's from
+  292,592 to 279,363. The probes used to be registered from the entry point, which would have made the
+  release build uncompilable; they now subscribe themselves with `@EventBusSubscriber` and `@SubscribeEvent`,
+  and nothing in the functional half names them. **A release jar therefore has no `/schedulercore` commands** —
+  acceptance runs need a `-PwithProbes` build. Verified on 1.20.1 by starting a dev server with the flag and
+  driving the rig over RCON: `rig build`, `rig pattern` and `rig craft` all worked, and the server log shows
+  `rig: planning an order` / `rig: submitted an order`, which is the tick listener firing.
 - **The per-tick trace is off unless asked for** (`/schedulercore trace on`). It was defaulted on inside the
   1.20.1 target only, to read a field report from a player's instance; it writes one INFO line per CPU per
   tick on the server thread, so it must never ship on.
