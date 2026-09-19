@@ -142,7 +142,14 @@ public final class SchedulerCore {
         // gained in 19.2.16 - a 1.21.1-era release - so this generation installs none and every order is
         // simply runnable. See ForgeSupport and, on the shared side, NbtSupport and SuspendSupport.
         ForgeSupport.install();
-        // dev tooling: the acceptance rig for this target (see RigCommand). Command-only, like the 1.21.1 one.
+        // TEMPORARY DIAGNOSTIC (1.20.1 only, remove after the ATM9 field report is understood).
+        //
+        // The per-tick trace prints, for the order that owns the tick, how much it pushed and - when it pushed
+        // nothing - whether waiting could help (TRANSIENT: a machine is still working for it) or not (FUTILE:
+        // nothing can take its pattern at all). A field report of "this order never progresses" cannot be told
+        // apart from "this order is being served but cannot push" without it, and on 1.20.1 the trace has to
+        // default on because the report comes from a player's instance, not from the rig.
+        com.schedulercore.scheduler.Trace.setEnabled(true);
         com.schedulercore.rig.RigCommand.install();
         LOG.info("{} loaded: scheduler core block + component; multi-job time-slice scheduler is armed.",
                 MOD_ID);
