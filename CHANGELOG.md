@@ -4,7 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.6] · Minecraft 1.21.1 — 2026-09-20
+## [1.1.0] · Minecraft 1.21.1 — 2026-09-20
+
+**The release that makes this two products instead of one — a 1.21.1 line and a 1.20.1 line, built from the
+same shared core.** The scheduling logic and the AE2-facing mixins now live in one `common/` tree that each
+target compiles with its own mappings, and each generation keeps only what is genuinely its own: its entry
+point, its block and items, its client models, its metadata, and the version-specific seams. The 1.21.1 mod
+itself behaves as it did in 1.0.4, apart from the two fixes below and the AE2 floor 1.0.5 raised. This is a
+minor bump rather than a patch because of how much the *project* changed, not the mod.
+
+**1.0.5 and 1.0.6 were intermediate states that were never published.** This release carries both; their
+entries are kept below, unedited, as the record of how it was built.
 
 **Two defects found by a field report, both of which could starve an order on a CPU that was working
 perfectly.** Neither is a crash and neither loses items, which is exactly why they survived 1.0.5: a starved
@@ -49,7 +59,7 @@ order looks like a slow machine, and the crafting-status screen showed nothing t
   3 s sample), four rows correct, and no `FUTILE` storm, after the provider-refusal fix; and the 1.21.1 rig
   re-run after the state-registration fix.
 
-## [1.0.0] · Minecraft 1.20.1 — 2026-09-19
+## [1.0.0] · Minecraft 1.20.1 — 2026-09-20
 
 **A second line: Minecraft 1.20.1.** The same scheduler, built for Forge 47.4.x — and for NeoForge 47.1.x, since
 AE2 ships one jar tagged for both on this Minecraft version — against AE2 15.4.x. This is that line's first
@@ -104,7 +114,7 @@ Minecraft generation is its own support window.
   Order-level runs were then done on real 1.20.1 clients, driven by **this target's own acceptance rig**
   (`/schedulercore rig build|pattern|craft|state|probe|trace`): several orders sharing one CPU, the per-order
   rows, per-order cancel, and the CPU's own totals. Every AE2 member the shared code touches was checked
-  against the real 15.4.10 jar, and the two fixes recorded under 1.0.6 are in this release too.
+  against the real 15.4.10 jar, and the two fixes recorded under 1.1.0 are in this release too.
 - **Known behaviour, and not this mod's.** On this generation an order that has to craft its own intermediates
   finishes **all** of them before it produces the first final item — an order for 100 crafting tables with no
   planks in the network makes every plank before it makes a table, so the order's "remaining" count sits still

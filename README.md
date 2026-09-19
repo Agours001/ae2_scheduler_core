@@ -10,6 +10,11 @@ One order runs per tick, and while it runs it behaves exactly like a vanilla sin
 
 **English** · [中文](README.zh-CN.md)
 
+> **Made for 1.21.1 first, then brought down to 1.20.1.** The 1.21.1 line is the original and the reference
+> implementation; the 1.20.1 line is that same shared core ported to AE2 15.x, and one capability does not
+> survive the trip — AE2 only gained crafting-job **suspend** in 19.2.16, so on 1.20.1 there is no freeze
+> button and every order is simply runnable. Everything else is the same code on both lines.
+
 ---
 
 ## Table of contents
