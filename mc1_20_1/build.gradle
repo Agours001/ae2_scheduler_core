@@ -45,22 +45,20 @@
 //
 // Everything else is compiled from `../common/src/main/java`.
 //
-// WHAT REMAINS BEFORE THIS TARGET COMPILES (audited against the real AE2 15.4.10 and Forge 1.20.1 jars):
-//   * the loader glue `common/` already imports but which does not exist yet on this side: `SchedulerCore`
-//     (`MOD_ID`, `LOG`, the registrations, `SCHEDULER_CORE_BLOCK_ITEM`), `block/SchedulerCoreBlock`,
-//     `block/SchedulerCoreBlockItem`, `item/SchedulerCoreItem`, `SchedulerUnitType` and
-//     `logic/ClusterUnits.hasSchedulerCore`. Written against Forge's `DeferredRegister`/`RegistryObject`, and
-//     with AE2 15.x's `appeng.capabilities.Capabilities` (there is no `AECapabilities` on this generation).
-//   * the NBT seam for this generation. 15.4.10's `ExecutingCraftingJob.writeToNBT()` takes NO argument (19.2.x
-//     takes a registry lookup), so this target needs its own accessor plus a `NbtSupport` implementation.
-//     Without them `NbtSupport` stays uninstalled and saving silently degrades to a logged exception - the
-//     highest-severity trap found by the audit.
+// WHAT REMAINS BEFORE THIS TARGET IS COMPLETE (audited against the real AE2 15.4.10 and Forge 1.20.1 jars):
 //   * the client model loaders, rewritten for `net.minecraftforge.client.model.geometry.*` (the
 //     `IUnbakedGeometry` API of 1.21.1 does not exist here), with `@Mod.EventBusSubscriber(bus = Bus.MOD, ...)`
 //     because Forge's default bus is FORGE. No asset or JSON change is needed.
-//   * one genuine source-compatible delta to respect: `IPatternDetails.getOutputs()` is `GenericStack[]` on this
-//     generation and `List<GenericStack>` on 1.21 - the shared code only iterates it, so it must never be
-//     indexed or asked for `.size()`.
+//   * the in-game guide registration (`SchedulerCoreGuide`), which on this generation needs
+//     `new ResourceLocation(...)` and nothing else. `SchedulerCore`'s constructor does not call it yet.
+//   * an acceptance rig for this generation. Without one there is no way to form a CPU, install a pattern or
+//     submit an order on 1.20.1, so "the server reaches Done with the mod loaded" is as far as verification
+//     goes today. The 1.21.1 rig is dev tooling written against a much newer AE2 dev API and is not part of
+//     this target; a reduced version (build the rig, install a pattern, submit two orders, report the rows and
+//     the scheduler state) is what this target needs.
+// One genuine source-compatible delta to respect: `IPatternDetails.getOutputs()` is `GenericStack[]` on this
+// generation and `List<GenericStack>` on 1.21 - the shared code only iterates it, so it must never be indexed
+// or asked for `.size()`.
 // The rest of the shared AE2 surface was checked member by member and matches with identical descriptors,
 // including every `@Inject`/`@Accessor`/`@Invoker`/`@Shadow` target, and `common/` uses no Minecraft API that
 // does not exist in 1.20.1.
@@ -156,6 +154,11 @@ dependencies {
     // own `ImmutableSet.Builder` so an addon that re-builds the same builder cannot overwrite the per-order
     // rows - so the library is bundled. `jarJar` ships it inside the mod; `additionalRuntimeClasspath` is what
     // puts it on the classpath of the dev runs for Minecraft 1.21.8 and older (ModDevGradle's README).
+    //
+    // `mixinextras-forge` is a thin loader-specific shell: the annotations and the injector live in
+    // `mixinextras-common`, which is why that artifact is needed to compile at all (it is `compileOnly`
+    // because the shell already brings it at runtime).
+    compileOnly 'io.github.llamalad7:mixinextras-common:0.4.1'
     jarJar(implementation('io.github.llamalad7:mixinextras-forge:0.4.1')) {
         version {
             strictly '[0.4.0,)'

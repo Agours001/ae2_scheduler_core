@@ -3,7 +3,7 @@ loaderVersion = "[47,)"
 license = "MIT"
 
 [[mods]]
-modId = "schedulercore"
+modId = "${mod_id}"
 version = "${mod_version_1_20_1}"
 displayName = "${mod_name}"
 authors = "${mod_authors}"
@@ -12,26 +12,35 @@ displayURL = "https://github.com/Agours001/ae2_scheduler_core"
 issueTrackerURL = "https://github.com/Agours001/ae2_scheduler_core/issues"
 logoFile = "schedulercore_logo.png"
 
-# AE2 15.x is the Minecraft 1.20.1 line. The floor is kept at the 15.x family rather than at the exact version
-# this was built against, for the same reason the 1.21.1 target's range is not derived from its build version:
-# a declared range that mirrors the development build refuses to load on a slightly older pack.
-[[dependencies.schedulercore]]
+# Dependency requirements, in this generation's spelling: Forge 1.20.1 wants `mandatory = true`, where the
+# 1.21.1 target's file writes `type = "required"` (that keyword is NeoForge's, from 1.20.5 on). FML rejects the
+# entire mod file with "Missing required field mandatory in dependency" if this is wrong, so it is worth knowing
+# that the two targets' metadata is not copy-pasteable in this one respect.
+
+# AE2 15.4.10 declares `forge [47.1.3,)` itself, so this mod never demands a newer Forge than its dependency
+# does. The range is kept at AE2's own floor rather than at the version this was built against, for the same
+# reason the 1.21.1 target's range is not derived from its build version: a range that mirrors the development
+# build refuses to load on a slightly older pack for no benefit.
+[[dependencies.${mod_id}]]
 modId = "forge"
-type = "required"
+mandatory = true
 versionRange = "${forge_dependency_range}"
 ordering = "NONE"
 side = "BOTH"
 
-[[dependencies.schedulercore]]
+[[dependencies.${mod_id}]]
 modId = "minecraft"
-type = "required"
+mandatory = true
 versionRange = "[1.20.1,1.21)"
 ordering = "NONE"
 side = "BOTH"
 
-[[dependencies.schedulercore]]
+# 15.4.0 is the floor whose members were checked one by one against the real jars (15.4.9 and 15.4.10): every
+# AE2 member the shared code names exists there with an identical descriptor. This generation has no
+# crafting-job suspend at all, so nothing here depends on AE2 newer than that.
+[[dependencies.${mod_id}]]
 modId = "ae2"
-type = "required"
+mandatory = true
 versionRange = "${ae2_dependency_range_1_20_1}"
 ordering = "AFTER"
 side = "BOTH"

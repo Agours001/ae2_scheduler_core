@@ -50,8 +50,10 @@ import com.schedulercore.scheduler.SchedulerJobCpu;
  * re-builds that builder - AdvancedAE, or any other addon that uses the same idiom - picks them up, and the
  * behaviour no longer depends on which mixin happens to run last.
  *
- * <p>{@code @WrapOperation} rather than {@code @Redirect} for the same reason: two mods that wrap the same
- * call both run, while two redirects on one call site are a hard mixin failure at startup.
+ * <p>{@code @WrapOperation} rather than {@code @Redirect} for the same reason, but the reason is <b>not</b>
+ * that two redirects fail the build - measured in Mixin 0.8.5's own bytecode, a second redirect on one call site
+ * is <i>silently skipped</i> ("already redirected by ..."), which is worse than a failure for a hook whose whole
+ * point is not losing rows quietly. {@code @WrapOperation} composes: both mods' wrappers run.
  *
  * <h2>What this deliberately does not do</h2>
  *
