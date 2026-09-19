@@ -113,6 +113,9 @@ public final class RigCommand {
                                 .then(Commands.argument("amount", LongArgumentType.longArg(1, 100_000))
                                         .executes(ctx -> craft(ctx.getSource(),
                                                 LongArgumentType.getLong(ctx, "amount")))))
+                        .then(Commands.literal("trace")
+                                .then(Commands.literal("on").executes(ctx -> trace(ctx.getSource(), true)))
+                                .then(Commands.literal("off").executes(ctx -> trace(ctx.getSource(), false))))
                         .then(Commands.literal("state")
                                 .executes(ctx -> state(ctx.getSource(), CORE))
                                 .then(Commands.argument("pos", BlockPosArgument.blockPos())
@@ -432,6 +435,24 @@ public final class RigCommand {
         } else {
             SchedulerCore.LOG.warn("[schedulercore] rig: submit rejected: {}", outcome.errorCode());
         }
+    }
+
+    // ------------------------------------------------------------------ trace
+
+    /**
+     * Turns the scheduler's per-tick trace on or off.
+     *
+     * <p>Off by default: one line per tick is what flooded a real game log with 13874 lines in an earlier
+     * round. On, it is the only way to tell "this order is being served and pushing" from "this order is being
+     * served and pushing nothing, and here is why" - the distinction a report of "this order does not run"
+     * cannot settle: {@code TRANSIENT} means a machine is still working for it, {@code FUTILE} means nothing
+     * can take its pattern at all.
+     */
+    private static int trace(CommandSourceStack source, boolean on) {
+        com.schedulercore.scheduler.Trace.setEnabled(on);
+        source.sendSuccess(() -> Component.literal("[schedulercore] per-tick trace " + (on ? "ON" : "OFF")
+                + (on ? " - reproduce now, then send the log" : "")), true);
+        return 1;
     }
 
     // ------------------------------------------------------------------ probe
