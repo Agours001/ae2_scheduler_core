@@ -12,3 +12,28 @@ subprojects {
         options.encoding = 'UTF-8'
     }
 }
+
+// The one thing the root project does: assemble a release. A release is two jars from two targets, and
+// this puts both where they are published from, so choosing the right files is not a manual step that can
+// be got wrong. It is not wired into `build` on purpose - a plain `gradlew build` stays a compile-and-test
+// run, and collecting artefacts is asked for by name:
+//
+//   ./gradlew releaseJars
+//
+// 1.20.1 is the interesting one: it produces two jars. `build/libs` holds the reobfuscated one, which is
+// what Forge resolves at runtime and therefore what ships; `build/devlibs` holds the unobfuscated copy for
+// development. Only `libs` is collected.
+tasks.register('releaseJars', Copy) {
+    group = 'build'
+    description = "Collects both targets' shippable jars into build/libs."
+
+    dependsOn ':mc1_20_1:build', ':mc1_21_1:build'
+
+    from(project(':mc1_20_1').layout.buildDirectory.dir('libs'))
+    from(project(':mc1_21_1').layout.buildDirectory.dir('libs'))
+    into layout.buildDirectory.dir('libs')
+
+    include '*.jar'
+    exclude '*-sources.jar', '*-javadoc.jar'
+}
+

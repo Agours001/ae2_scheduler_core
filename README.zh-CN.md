@@ -96,6 +96,7 @@ AE2 的合成 CPU 一次只能接一个订单。本模组增加一个 **调度�
 
 ```powershell
 ./gradlew build                 # 构建两个目标；各自的 jar 落在自己的 build/libs/
+./gradlew releaseJars           # 把两个【可发布】jar 收集到 build/libs/ —— 发布用这个
 ./gradlew :mc1_21_1:build       # schedulercore-mc1.21.1-1.1.0.jar
 ./gradlew :mc1_20_1:build       # schedulercore-mc1.20.1-1.0.0.jar，已重混淆到 SRG（Forge 运行期名字）；
                                 # 未混淆的开发版留在该目标的 build/devlibs/

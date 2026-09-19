@@ -99,6 +99,7 @@ Nothing needs to be downloaded by hand — Gradle resolves everything, including
 
 ```powershell
 ./gradlew build                 # both targets; each jar lands in its own build/libs/
+./gradlew releaseJars           # collect both SHIPPABLE jars into build/libs/ - what a release publishes
 ./gradlew :mc1_21_1:build       # schedulercore-mc1.21.1-1.1.0.jar
 ./gradlew :mc1_20_1:build       # schedulercore-mc1.20.1-1.0.0.jar, reobfuscated to SRG (Forge's runtime names);
                                 # the un-obfuscated development copy is kept in that target's build/devlibs/
