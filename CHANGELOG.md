@@ -66,14 +66,18 @@ Minecraft generation is its own support window.
   the block and item models resolve to nothing, and the recipes never load. NeoForge 21.1 supplies the equivalent
   itself, which is why the 1.21.1 target has never needed one — and why this failure can only show up on this
   line. Found on a real 1.20.1 client with AE2 alone and on ATM9.
-- **This line's own block textures.** Both block looks are now built on AE2 15.4.10's own crafting-unit
-  textures, and they live in this target's resource set rather than in `common/`, because the 1.21.1 line's
-  textures are drawn against that generation's AE2 and must not move. The unformed block keeps AE2's
-  `block/crafting/unit` frame and corner ring and has that texture's grey field replaced by the mod's theme
-  colour in flat fill, so it is recognisably one of the multiblock's parts rather than a foreign cube. The
-  linked block keeps the crafting-cube shell it already had — AE2's dark base and the unchanged metal
-  connection rings — with its emissive connection band in the same theme colour. The scheduler core **item**
-  is untouched.
+- **This line's own block textures, modelled on AE2's co-processing unit.** Both looks are now built on
+  AE2 15.4.10's own crafting-unit textures, and they live in this target's resource set rather than in
+  `common/`, because the 1.21.1 line's textures are drawn against that generation's AE2 and must not move.
+  AE2's own language for these blocks is "the same grey frame, with the middle carrying the block's colour" —
+  the crafting unit's middle is grey, the co-processing unit's is a solid purple square — and this block now
+  follows it: the unformed face is AE2's `block/crafting/unit` frame with its grey field in flat theme colour,
+  and the linked face is AE2's dark crafting-cube base with the **co-processing unit's** emissive band,
+  pixel for pixel, recoloured from its purple ramp onto the mod's teal one. The previous band was a recoloured
+  crafting *storage* band, which is a different pattern and did not match the parts around it.
+  Its fully transparent pixels are also `#00FFFFFF` now, as AE2 writes them, instead of carrying the recolour's
+  own blue: mipmapping averages colour across transparent pixels, so at range the whole face blended to blue
+  and the block read as a solid blue cube rather than a dark one. The scheduler core **item** is untouched.
 
 ### Notes
 
