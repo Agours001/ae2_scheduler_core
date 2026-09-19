@@ -25,6 +25,11 @@ Minecraft generation is its own support window.
 - **MixinExtras is bundled inside the jar.** Neither Forge 1.20.1 nor AE2 15.4.10 provides it, and the hook that
   adds the per-order rows into AE2's own CPU set is a MixinExtras `@WrapOperation` — the form that composes with
   another addon doing the same thing instead of silently overwriting it.
+- **`pack.mcmeta`, which only this target needs.** Forge 1.20.1 registers a mod's `assets/` and `data/` as packs
+  only if the jar carries that file: without it the game logs "Missing metadata in pack" and "Missing data pack",
+  the block and item models resolve to nothing, and the recipes never load. NeoForge 21.1 supplies the equivalent
+  itself, which is why the 1.21.1 target has never needed one — and why this failure can only show up on this
+  line. Found on a real 1.20.1 client with AE2 alone and on ATM9.
 
 ### Notes
 
