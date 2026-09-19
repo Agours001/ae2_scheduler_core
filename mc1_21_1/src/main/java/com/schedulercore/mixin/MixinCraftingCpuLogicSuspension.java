@@ -30,6 +30,12 @@ import com.schedulercore.scheduler.SuspendSupport;
  * it evaluates {@code setJobSuspended(!isJobSuspended())}, so every press of the button meant "suspend" and the
  * order could never be resumed: reported from a real machine as "挂起成功，但挂起后无法恢复".
  *
+ * <p><b>Withdrawn when its target is absent.</b> {@code SchedulerCoreMixinPlugin} takes this whole class out
+ * when this AE2 has no {@code isJobSuspended}/{@code setJobSuspended} at all - what 19.2.0 through 19.2.15 are
+ * - so those versions load with the freeze feature off instead of dying in mixin application. Nothing here is
+ * {@code require = 0}: either the members exist and these hooks must apply, or the plugin has already removed
+ * the class. A silent no-op would quietly restore the one-way button this file exists to fix.
+ *
  * <p><b>Which subject, and why it is not the slice owner.</b> The button belongs to a page. With an order's
  * row in focus it means that order; with no order in focus - the CPU's own row, or the CPU block's own screen,
  * which has no list at all - it means <b>every order on this CPU</b>, so the machine can be frozen and released

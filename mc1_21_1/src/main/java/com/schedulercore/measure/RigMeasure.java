@@ -655,14 +655,26 @@ public final class RigMeasure {
         var logic = be.getCluster().craftingLogic;
 
         if (toggle) {
-            boolean before = logic.isJobSuspended();
-            logic.setJobSuspended(!before); // literally what CraftingCPUMenu.toggleScheduling() does
-            boolean after = logic.isJobSuspended();
-            source.sendSuccess(() -> Component.literal(
-                    "[schedulercore] uiprobe toggle (" + cpuName + "): isJobSuspended "
-                            + before + " -> " + after
-                            + (before == after ? "  <-- STUCK: the button cannot change it" : "  (toggled)")),
-                    true);
+            // By name, never by call: isJobSuspended/setJobSuspended came with suspend in 19.2.16 and this mod
+            // runs on older AE2 as well. See RigSuspendApi for why that has to be reflection.
+            if (!RigSuspendApi.available()) {
+                source.sendFailure(Component.literal("[schedulercore] this AE2 has no crafting-job suspend "
+                        + "(added in 19.2.16), so there is no button to probe."));
+                return 0;
+            }
+            try {
+                boolean before = RigSuspendApi.isJobSuspended(logic);
+                RigSuspendApi.setJobSuspended(logic, !before); // what CraftingCPUMenu.toggleScheduling() does
+                boolean after = RigSuspendApi.isJobSuspended(logic);
+                source.sendSuccess(() -> Component.literal(
+                        "[schedulercore] uiprobe toggle (" + cpuName + "): isJobSuspended "
+                                + before + " -> " + after
+                                + (before == after ? "  <-- STUCK: the button cannot change it" : "  (toggled)")),
+                        true);
+            } catch (ReflectiveOperationException e) {
+                source.sendFailure(Component.literal("[schedulercore] suspend probe failed: " + e));
+                return 0;
+            }
             return 1;
         }
 
@@ -691,9 +703,11 @@ public final class RigMeasure {
                 ? com.schedulercore.scheduler.SchedulingPolicy.Decision.NONE
                 : schedulerState.focusedSlotId();
         source.sendSuccess(() -> Component.literal("=== uiprobe " + cpuName + " (what the screen gets) ==="), false);
+        // Also by name: the status object only reports a suspend flag on AE2 that has one.
+        final String statusSuspended = RigSuspendApi.statusSuspended(status);
         source.sendSuccess(() -> Component.literal(
                 "job=" + (out == null ? "none" : out.what().getDisplayName().getString())
-                        + "  suspended=" + status.isSuspended()
+                        + "  suspended=" + statusSuspended
                         + "  focusedOrder=" + (focusedOrder < 0 ? "none" : focusedOrder)
                         + "  storedKeys=" + logic.getInventory().list.size()
                         + "  waitingKeys=" + waiting.size()), false);

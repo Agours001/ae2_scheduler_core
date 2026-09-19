@@ -10,7 +10,8 @@
   "mixins": [
     "AccessorElapsedTimeTracker",
     "AccessorExecutingCraftingJob",
-    "AccessorExecutingCraftingJobTarget",
+    "AccessorExecutingCraftingJobPersistence",
+    "AccessorExecutingCraftingJobSuspend",
     "MixinCraftingCPUCalculator",
     "MixinCraftingCPUCluster",
     "MixinCraftingCPUMenu",

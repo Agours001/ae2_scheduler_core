@@ -4,6 +4,58 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-09-19
+
+**One shared core, two Minecraft generations — and the mod now loads on every AE2 19.2.x instead of only the
+newest ones.** The scheduling logic and the AE2-facing mixins moved into `common/`, which each target compiles
+with its own mappings; only the generation-specific members stay per target. On top of that, the one AE2 member
+this mod touches that arrived mid-line — crafting-job suspend (19.2.16) — is now detected before it is used, so
+an older 19.2.x loses that one feature rather than the whole mod.
+
+### Fixed
+
+- **AE2 19.2.0 – 19.2.15 could not load the mod at all.** The mod declared `[19.2.0,)` but hooked
+  `isJobSuspended` / `setJobSuspended` and the `ExecutingCraftingJob.suspended` field unconditionally, and those
+  arrived in 19.2.16 (PR #8635): on an older 19.2.x mixin application failed the moment AE2 loaded its crafting
+  logic, taking the game down with it instead of leaving a feature unavailable. `SuspendApiProbe` now answers
+  whether those members exist — by reading AE2's class file **as a resource**, which is the only way to ask
+  while mixin configuration is being applied, where loading a target class is fatal — and
+  `SchedulerCoreMixinPlugin` withdraws exactly the two mixins that name them. Verified by building and running
+  this target against AE2 **19.2.15**: the server comes up, both orders are admitted and listed, the per-order
+  pages and focus work, save and restart keep both orders, and asking for the freeze button reports that this
+  AE2 has none instead of failing.
+- **The rig no longer hard-links an optional AE2 member.** `RigMeasure` called `isJobSuspended`,
+  `setJobSuspended` and `CraftingStatus.isSuspended()` directly, which both prevented building this target
+  against an older AE2 and left a call into a member that may not exist in the shipped jar. Those three are now
+  looked up once (`RigSuspendApi`) and reported as absent where they are.
+- **The install-time check may not name the mixin it is about.** The first version of it asked the accessor
+  interface directly, which Mixin rejects with `IllegalClassLoadError` — on exactly the AE2 builds where that
+  interface had been withdrawn, i.e. the case the check exists for. It asks `SuspendApiProbe` instead, so the
+  mixin plugin and the installer cannot reach different conclusions about the same AE2.
+
+### Changed
+
+- **Repository layout: one shared core, one directory per target.** The pure scheduling logic and the mixins
+  moved to `common/`, which each Minecraft target adds to its own source set and therefore compiles with its own
+  mappings — that is what makes one shared tree possible across two mapping generations. `mc1_21_1/` keeps the
+  mod entry point, the block, the client models, the acceptance rig and the mod metadata; `mc1_20_1/` is a
+  target skeleton for 1.20.1, not part of the build yet. Build commands are per target now:
+  `./gradlew :mc1_21_1:build`, `:mc1_21_1:test`, `:mc1_21_1:runServer`.
+- **The two capability seams are what keep `common/` free of generation-specific types.** Serialising a job
+  (whose signature gained a registry lookup in 1.20.5) reaches the shared code through `NbtSupport`, the suspend
+  flag through `SuspendSupport`. A target that has the seam but not the feature installs nothing, and the
+  scheduler then treats every order as runnable.
+
+### Notes
+
+- Nothing changed on AE2 19.2.16+. Both orders, the CPU row's aggregate, the per-order pages, focus and release,
+  the freeze button, per-order cancel and save/restore were re-run end to end on 1.21.1 with AE2 19.2.17,
+  including a save taken **while an order was selected** followed by a restart — the case that once lost the
+  rest of the queue. A world saved under 19.2.15 also loads under 19.2.17 with its orders intact.
+- The suspend mixins are withdrawn as a whole rather than applied with `require = 0`. `require = 0` does not
+  reach field targets anyway, and a half-applied suspend hook would quietly restore the one-way button that
+  1.0.4 fixed; deciding once, from a probe, is what keeps every *other* hook failing loudly.
+
 ## [1.0.4] - 2026-09-17
 
 **The CPU's own row is a CPU page, and only that row is.** Reported from a real machine: selecting an order

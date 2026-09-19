@@ -74,8 +74,14 @@ Splitting the per-tick budget between jobs as tokens is explicitly forbidden her
 |---|---|
 | Minecraft | 1.21.1 |
 | NeoForge | 21.1.250 |
-| Applied Energistics 2 | 19.2.17 (required — the mod will not load without it) |
+| Applied Energistics 2 | 19.2.0 or newer (required — the mod will not load without it); 19.2.16 or newer to freeze a CPU |
 | Java | 21 |
+
+> **On the AE2 version.** Everything this mod does works from AE2 19.2.0 onwards. The one exception is freezing
+> a CPU, which is built on AE2's own job-suspend flag — added in 19.2.16 (PR #8635). On an older 19.2.x the mod
+> loads and runs normally with that single feature switched off, instead of refusing to start: a pack on an
+> older AE2 loses one button, not the mod. AE2's own screen has no suspend button on those versions either, so
+> the two agree.
 
 ## Build from source
 
@@ -101,6 +107,13 @@ The two generation-specific capabilities the shared code needs — serialising a
 registry lookup in 1.20.5) and suspending one (AE2 gained that in 19.2.16, so the whole 1.20.1 line has no such
 feature) — reach `common` through `NbtSupport` and `SuspendSupport`, which a target installs at construction.
 That is what keeps shared files free of types that exist in only one generation.
+
+A target that *has* the seam but not the feature — this one, on AE2 older than 19.2.16 — installs nothing, and
+the mixin plugin withdraws the two mixins that name those members, so nothing in the game is left half-hooked.
+(`SuspendApiProbe` decides that by reading AE2's class file **as a resource**: a class may not be loaded while
+mixin configuration is being applied, and the presence of a field's own name in its class file is exactly the
+question being asked.) The scheduler then treats every order as runnable, which is what an AE2 without suspend
+means.
 
 | | |
 |---|---|
