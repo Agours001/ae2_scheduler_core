@@ -74,14 +74,14 @@ Splitting the per-tick budget between jobs as tokens is explicitly forbidden her
 |---|---|
 | Minecraft | 1.21.1 |
 | NeoForge | 21.1.250 |
-| Applied Energistics 2 | 19.2.0 or newer (required — the mod will not load without it); 19.2.16 or newer to freeze a CPU |
+| Applied Energistics 2 | 19.2.16 or newer (required — the mod will not load without it) |
 | Java | 21 |
 
-> **On the AE2 version.** Everything this mod does works from AE2 19.2.0 onwards. The one exception is freezing
-> a CPU, which is built on AE2's own job-suspend flag — added in 19.2.16 (PR #8635). On an older 19.2.x the mod
-> loads and runs normally with that single feature switched off, instead of refusing to start: a pack on an
-> older AE2 loses one button, not the mod. AE2's own screen has no suspend button on those versions either, so
-> the two agree.
+> **On the AE2 version.** The floor is **19.2.16**, the release that added crafting-job suspend (PR #8635),
+> which the CPU-freeze integration is built on. That floor is declared in the mod metadata, so a pack running an
+> older AE2 gets a clear requirement message from the loader — before anything of this mod runs — rather than a
+> crash while AE2 loads its crafting logic. Everything else this mod hooks has existed since 19.2.0-beta, so the
+> floor is set by the newest member the mod uses, not by the oldest it could work with.
 
 ## Build from source
 
@@ -108,12 +108,10 @@ registry lookup in 1.20.5) and suspending one (AE2 gained that in 19.2.16, so th
 feature) — reach `common` through `NbtSupport` and `SuspendSupport`, which a target installs at construction.
 That is what keeps shared files free of types that exist in only one generation.
 
-A target that *has* the seam but not the feature — this one, on AE2 older than 19.2.16 — installs nothing, and
-the mixin plugin withdraws the two mixins that name those members, so nothing in the game is left half-hooked.
-(`SuspendApiProbe` decides that by reading AE2's class file **as a resource**: a class may not be loaded while
-mixin configuration is being applied, and the presence of a field's own name in its class file is exactly the
-question being asked.) The scheduler then treats every order as runnable, which is what an AE2 without suspend
-means.
+The 1.20.1 target is the case this split exists for: AE2 15.x has no crafting-job suspend at all — no flag, no
+screen button — so that target does not include the mixins or the accessor that name it, and installs no
+`SuspendSupport` implementation. The scheduler then treats every order as runnable, which is exactly what that
+generation means. The 1.21.1 target declares AE2 19.2.16+ and installs the accessor.
 
 | | |
 |---|---|
