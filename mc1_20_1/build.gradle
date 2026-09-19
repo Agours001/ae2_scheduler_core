@@ -175,12 +175,16 @@ dependencies {
     modCompileOnly "maven.modrinth:Ck4E7v7R:${guideme_version_1_20_1}"      // GuideME
     modRuntimeOnly "maven.modrinth:Ck4E7v7R:${guideme_version_1_20_1}"
 
-    // Same escape hatch as the 1.21.1 target: jars in this project's libs/ take precedence, and that is also
-    // how another addon is tested against this one. libs/*.jar is gitignored.
+    // Same escape hatch as the 1.21.1 target: jars in this project's libs/ take precedence. They are added to
+    // the plain configurations, not the `mod*` ones: those remap Maven-coordinate mods from SRG to official
+    // names and reject file collections outright ("Cannot convert the provided notation to an object of type
+    // DependencyConstraint"). A local jar is already what the loader will read on this generation, and nothing
+    // here compiles against one - the whole point of the directory is to run another mod's jar alongside this
+    // one, as in the AdvancedAE reproduction. libs/*.jar is gitignored.
     def localLibs = fileTree(dir: 'libs', include: ['*.jar'])
     if (!localLibs.isEmpty()) {
-        modCompileOnly localLibs
-        modRuntimeOnly localLibs
+        compileOnly localLibs
+        runtimeOnly localLibs
     }
 }
 

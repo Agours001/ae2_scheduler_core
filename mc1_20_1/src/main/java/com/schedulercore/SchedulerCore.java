@@ -142,6 +142,8 @@ public final class SchedulerCore {
         // gained in 19.2.16 - a 1.21.1-era release - so this generation installs none and every order is
         // simply runnable. See ForgeSupport and, on the shared side, NbtSupport and SuspendSupport.
         ForgeSupport.install();
+        // dev tooling: the acceptance rig for this target (see RigCommand). Command-only, like the 1.21.1 one.
+        com.schedulercore.rig.RigCommand.install();
         LOG.info("{} loaded: scheduler core block + component; multi-job time-slice scheduler is armed.",
                 MOD_ID);
     }
