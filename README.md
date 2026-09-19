@@ -115,6 +115,29 @@ Nothing needs to be downloaded by hand — Gradle resolves everything, including
 > it fails while wiring its own services, before any project is evaluated. `settings.gradle` declares the foojay
 > resolver so a 17 toolchain can be found or provisioned.
 
+### Which version is which
+
+The two lines are numbered **independently** — a Minecraft generation is its own support window — so each has
+its own property in `gradle.properties` and changing one never moves the other:
+
+| Target | Version property | Archive name | Output |
+|---|---|---|---|
+| `:mc1_21_1` | `mod_version` (1.0.6) | `schedulercore-mc1.21.1-1.0.6.jar` | `mc1_21_1/build/libs/` |
+| `:mc1_20_1` | `mod_version_1_20_1` (1.0.0) | `schedulercore-mc1.20.1-1.0.0.jar` | `mc1_20_1/build/libs/` — **ship this one** |
+
+> **1.20.1 produces two jars and only one of them is shippable.** Forge resolves members by SRG name at
+> runtime, so the plugin reobfuscates the archive; that copy lands in `build/libs/`. The unobfuscated one in
+> `build/devlibs/` is for development only — installing it into a normal Forge instance fails with
+> `NoSuchMethodError` at the first AE2 call.
+
+Everything else about a build comes from the same file: the Minecraft, loader, AE2 and GuideME versions, and
+the declared dependency ranges that become `mods.toml` / `neoforge.mods.toml`.
+
+**Tests live on the 1.21.1 project.** The shared L1 assertions are a pure-logic source set that only
+`:mc1_21_1` compiles (`../common/src/test/java`), so `./gradlew :mc1_21_1:test` is the whole suite.
+`:mc1_20_1:test` exists but reports `NO-SOURCE` — its smoke test is reaching `Done` in
+`:mc1_20_1:runServer`.
+
 ### Repository layout
 
 One repository, two Minecraft targets, one shared core:

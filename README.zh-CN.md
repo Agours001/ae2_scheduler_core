@@ -111,6 +111,27 @@ AE2 的合成 CPU 一次只能接一个订单。本模组增加一个 **调度�
 > （`mc1_21_1` 用 21，`mc1_20_1` 用 17），但 Gradle 不能跑在本机的 JDK 17 上：它会在装配自身服务时失败，
 > 早于任何项目求值。`settings.gradle` 已声明 foojay 解析器，以便找到或自动准备 17 的 toolchain。
 
+### 哪个版本号对应哪个产物
+
+两条线**各自独立编号**——一个 Minecraft 世代就是一个独立的支持窗口——所以 `gradle.properties` 里各有
+自己的属性，改一个不会动另一个：
+
+| 目标 | 版本属性 | 产物文件名 | 输出目录 |
+|---|---|---|---|
+| `:mc1_21_1` | `mod_version`（1.0.6） | `schedulercore-mc1.21.1-1.0.6.jar` | `mc1_21_1/build/libs/` |
+| `:mc1_20_1` | `mod_version_1_20_1`（1.0.0） | `schedulercore-mc1.20.1-1.0.0.jar` | `mc1_20_1/build/libs/` —— **发布用这个** |
+
+> **1.20.1 会产出两个 jar，只有一个能发。** Forge 运行期按 SRG 名字解析成员，所以插件会把归档重混淆，
+> 那一份落在 `build/libs/`。`build/devlibs/` 里的是**未混淆**的，仅供开发——把它装进普通 Forge 实例，
+> 第一次调用 AE2 就会 `NoSuchMethodError`。
+
+构建的其余信息也全部来自同一个文件：Minecraft / 加载器 / AE2 / GuideME 的版本，以及那些会写进
+`mods.toml` / `neoforge.mods.toml` 的依赖区间。
+
+**测试挂在 1.21.1 工程上。** 共享的 L1 断言是一个纯逻辑 source set，只有 `:mc1_21_1` 编译它
+（`../common/src/test/java`），所以 `./gradlew :mc1_21_1:test` 就是全部测试；`:mc1_20_1:test`
+任务存在但会报 `NO-SOURCE`，它的冒烟测试是 `:mc1_20_1:runServer` 能跑到 `Done`。
+
 ### 仓库结构
 
 一个仓库、两个 Minecraft 目标、一份共享核心：
