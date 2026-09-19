@@ -83,6 +83,12 @@ public final class RigCommand {
     private static final BlockPos ASSEMBLER_B = new BlockPos(1, 99, 0);
     /** Holds the raw material: an interface's own storage is visible to the network, a bare grid's is not. */
     private static final BlockPos INTERFACE = new BlockPos(2, 100, 0);
+    /**
+     * Real network storage. Needed because the <i>planner</i> only reads network-visible storage: seeding the
+     * CPU's own inventory satisfies execution but leaves the plan "simulated", and an ME interface's config
+     * slots are not enough either on AE2 15.x.
+     */
+    private static final BlockPos DRIVE = new BlockPos(0, 99, 0);
 
     private static final ResourceLocation INPUT_ITEM = new ResourceLocation("minecraft:oak_planks");
     private static final ResourceLocation OUTPUT_ITEM = new ResourceLocation("minecraft:stick");
@@ -90,7 +96,9 @@ public final class RigCommand {
     /** The order being planned, if any. Never block on it; see the class note. */
     private static Future<ICraftingPlan> pendingPlan;
     private static IActionSource pendingSource;
+    /** Material supplied but not yet planned; see {@link #maybeStartPlan}. */
     private static long pendingAmount;
+    private static int pendingSupplyTick;
 
     private RigCommand() {
     }
@@ -130,6 +138,8 @@ public final class RigCommand {
     private static final ResourceLocation PROVIDER_BLOCK = new ResourceLocation("ae2", "pattern_provider");
     private static final ResourceLocation ASSEMBLER_BLOCK = new ResourceLocation("ae2", "molecular_assembler");
     private static final ResourceLocation INTERFACE_BLOCK = new ResourceLocation("ae2", "interface");
+    private static final ResourceLocation DRIVE_BLOCK = new ResourceLocation("ae2", "drive");
+    private static final ResourceLocation CELL_ITEM = new ResourceLocation("ae2", "16k_item_cell");
 
     /**
      * Builds the rig: a powered grid with one scheduler-led CPU and one pattern provider.
@@ -148,6 +158,11 @@ public final class RigCommand {
         place(level, ASSEMBLER_A, ASSEMBLER_BLOCK);
         place(level, ASSEMBLER_B, ASSEMBLER_BLOCK);
         place(level, INTERFACE, INTERFACE_BLOCK);
+        place(level, DRIVE, DRIVE_BLOCK);
+        if (level.getBlockEntity(DRIVE) instanceof appeng.blockentity.storage.DriveBlockEntity drive) {
+            drive.getInternalInventory().setItemDirect(0, new ItemStack(BuiltInRegistries.ITEM.get(CELL_ITEM)));
+            drive.saveChanges();
+        }
 
         source.sendSuccess(() -> Component.literal("[schedulercore] rig built: cell " + CELL.toShortString()
                 + ", CPU " + STORAGE.toShortString() + ".." + UNIT.toShortString()
@@ -286,6 +301,15 @@ public final class RigCommand {
         // quarter of it. Getting this wrong is silent: the planner just reports "missing ingredients".
         long planks = (amount + 3) / 4;
         logic.getInventory().insert(input, planks, Actionable.MODULATE);
+        // The planner reads network storage, so the material has to be there too - the CPU inventory alone
+        // leaves the plan "simulated" (see the DRIVE note).
+        long accepted = grid.getStorageService().getInventory().insert(input, planks, Actionable.MODULATE,
+                new MachineSource(core));
+        if (accepted < planks) {
+            source.sendFailure(Component.literal("[schedulercore] the network accepted only " + accepted + "/"
+                    + planks + " planks - is the drive's cell mounted?"));
+            return 0;
+        }
         if (level.getBlockEntity(INTERFACE) instanceof appeng.blockentity.misc.InterfaceBlockEntity iface) {
             // Spread the material over every interface slot: one slot holds 64, so a single-slot supply is
             // silently clamped and the plan then comes back "simulated" for any order needing more.
@@ -310,6 +334,37 @@ public final class RigCommand {
             return 0;
         }
 
+        // Hand the planning to a later tick, on purpose. AE2's calculator runs on a worker thread and reads a
+        // storage snapshot taken when it starts, so a plan requested in the same tick as the supply does not
+        // see the material and comes back "simulated". The 1.21.1 rig hit this too and prints the same warning
+        // in its own message.
+        pendingAmount = amount;
+        pendingSupplyTick = level.getServer().getTickCount() + 1;
+        source.sendSuccess(() -> Component.literal("[schedulercore] supplied " + planks + " planks; planning an"
+                + " order for " + amount + " x " + OUTPUT_ITEM + " on the next tick"), true);
+        return 1;
+    }
+
+    /** Starts the calculation once the supplied material is visible to the grid's storage snapshot. */
+    private static void maybeStartPlan(TickEvent.ServerTickEvent event) {
+        if (pendingAmount <= 0 || pendingPlan != null
+                || event.getServer().getTickCount() < pendingSupplyTick) {
+            return;
+        }
+        ServerLevel level = event.getServer().overworld();
+        if (!(level.getBlockEntity(CORE) instanceof CraftingBlockEntity core) || core.getCluster() == null) {
+            pendingAmount = 0;
+            return;
+        }
+        CraftingCPUCluster cluster = core.getCluster();
+        IGrid grid = cluster.getGrid();
+        if (grid == null) {
+            pendingAmount = 0;
+            return;
+        }
+        long amount = pendingAmount;
+        pendingAmount = 0;
+
         AEItemKey output = AEItemKey.of(new ItemStack(BuiltInRegistries.ITEM.get(OUTPUT_ITEM)));
         MachineSource machineSource = new MachineSource(core);
         ICraftingSimulationRequester requester = new ICraftingSimulationRequester() {
@@ -320,23 +375,23 @@ public final class RigCommand {
 
             @Override
             public IGridNode getGridNode() {
-                // Not optional: with a null node AE2 skips every pattern and the plan comes back "simulated",
-                // which looks exactly like "this grid cannot craft that item".
+                // Not optional: with a null node AE2 skips every pattern and the plan comes back "simulated".
                 return ((IActionHost) core).getActionableNode();
             }
         };
         pendingPlan = grid.getCraftingService().beginCraftingCalculation(
                 level, requester, output, amount, CalculationStrategy.CRAFT_LESS);
         pendingSource = machineSource;
-        pendingAmount = amount;
-        source.sendSuccess(() -> Component.literal("[schedulercore] planning an order for " + amount + " x "
-                + OUTPUT_ITEM + "; it is submitted on a later tick"), true);
-        return 1;
+        SchedulerCore.LOG.info("[schedulercore] rig: planning an order for {} x {}", amount, OUTPUT_ITEM);
     }
 
     /** Submits the finished plan - never on the thread that started it, and never by blocking on it. */
     private static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || pendingPlan == null || !pendingPlan.isDone()) {
+        if (event.phase != TickEvent.Phase.END) {
+            return;
+        }
+        maybeStartPlan(event);
+        if (pendingPlan == null || !pendingPlan.isDone()) {
             return;
         }
         Future<ICraftingPlan> plan = pendingPlan;
