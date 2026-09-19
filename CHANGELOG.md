@@ -31,6 +31,18 @@ order looks like a slow machine, and the crafting-status screen showed nothing t
   never asked for. The getter is now side-effect free (it answers from a shared, unregistered empty state)
   and the one place that legitimately needs a registered state, admission, asks for it explicitly.
 
+### Changed
+
+- **The unformed block now looks like what it is: an AE2 crafting unit with one extra thing.** It used to be
+  a flat cube wearing the mod's own teal target, which read as a foreign object bolted into a crafting
+  multiblock. It now keeps AE2's `block/crafting/unit` frame and corner brackets and reuses that texture's own
+  tone, so an unformed core lines up with the units around it the way AE2's own units do, and carries a single
+  teal mark — two streams merging into one output — for what the block does.
+- **The linked state carries the same mark.** Its emissive layer was a recoloured copy of a crafting
+  *storage*'s connection band; stacking that under the new mark made the lit face unreadable. The shell and
+  the metal connection rings already supply the crafting-cube family look, so the band now draws just the
+  mark, lit. Both states are one symbol, matte and then glowing.
+
 ### Notes
 
 - **The per-tick trace is off unless asked for** (`/schedulercore trace on`). It was defaulted on inside the
@@ -66,6 +78,10 @@ Minecraft generation is its own support window.
   the block and item models resolve to nothing, and the recipes never load. NeoForge 21.1 supplies the equivalent
   itself, which is why the 1.21.1 target has never needed one — and why this failure can only show up on this
   line. Found on a real 1.20.1 client with AE2 alone and on ATM9.
+- **The block's two looks, reworked against AE2's own textures** (shared with the 1.21.1 line — see 1.0.6). The
+  unformed block is AE2's grey crafting unit with the mod's mark on it, and the linked block lights that same
+  mark inside AE2's crafting-cube shell, so a scheduler core sits in a multiblock as part of it rather than as a
+  foreign object. The scheduler core **item** is unchanged.
 
 ### Notes
 
