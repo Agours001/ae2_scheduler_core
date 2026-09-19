@@ -232,7 +232,7 @@ public final class RigCompare {
                 leg.startTick = now;
                 leg.baseline = RigCrafts.countOutput(grid);
                 comparison.phase = Phase.SAMPLING;
-                broadcast(server, "[schedulercore] compare: " + leg.label.strip() + " started ("
+                RigTiming.broadcast(server, "[schedulercore] compare: " + leg.label.strip() + " started ("
                         + leg.requested + " requested, network already holds " + leg.baseline + ")");
             }
             case SAMPLING -> {
@@ -268,7 +268,7 @@ public final class RigCompare {
 
     private static void finishLeg(Comparison comparison, MinecraftServer server, int now) {
         var leg = comparison.current();
-        broadcast(server, "[schedulercore] compare: leg finished - " + leg.label.strip()
+        RigTiming.broadcast(server, "[schedulercore] compare: leg finished - " + leg.label.strip()
                 + " arrived=" + leg.arrived + "/" + leg.requested
                 + " ticks=" + (leg.ticksToFinish < 0 ? "?" : leg.ticksToFinish)
                 + " longestGap=" + leg.longestGap + leg.note);
@@ -330,10 +330,6 @@ public final class RigCompare {
         }
         sb.append("\nnote: identical order on two identically built CPUs; legs ran one after the other so")
                 .append(" every arrival is attributable to one of them.");
-        broadcast(server, sb.toString());
-    }
-
-    private static void broadcast(MinecraftServer server, String message) {
-        RigTiming.broadcast(server, message);
+        RigTiming.broadcast(server, sb.toString());
     }
 }
