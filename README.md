@@ -70,28 +70,42 @@ Splitting the per-tick budget between jobs as tokens is explicitly forbidden her
 
 ## Requirements
 
-| | Version |
-|---|---|
-| Minecraft | 1.21.1 |
-| NeoForge | 21.1.250 |
-| Applied Energistics 2 | 19.2.16 or newer (required — the mod will not load without it) |
-| Java | 21 |
+| | 1.21.1 line — 1.0.5 | 1.20.1 line — 1.0.0 |
+|---|---|---|
+| Minecraft | 1.21.1 | 1.20.1 |
+| Loader | NeoForge 21.1.x (built against 21.1.250) | Forge 47.4.x (built against 47.4.10). The same build also runs on NeoForge 47.1.x, since AE2 ships one jar tagged for both on this Minecraft version. |
+| Applied Energistics 2 | 19.2.16 or newer | 15.4.0 or newer (built against 15.4.10) |
+| Java | 21 | 17 |
 
-> **On the AE2 version.** The floor is **19.2.16**, the release that added crafting-job suspend (PR #8635),
-> which the CPU-freeze integration is built on. That floor is declared in the mod metadata, so a pack running an
-> older AE2 gets a clear requirement message from the loader — before anything of this mod runs — rather than a
-> crash while AE2 loads its crafting logic. Everything else this mod hooks has existed since 19.2.0-beta, so the
-> floor is set by the newest member the mod uses, not by the oldest it could work with.
+> **On the 1.21.1 line's AE2 floor.** The floor is **19.2.16**, the release that added crafting-job suspend
+> (PR #8635), which the CPU-freeze integration is built on. It is declared in the mod metadata, so a pack
+> running an older AE2 gets a clear requirement message from the loader — before anything of this mod runs —
+> rather than a crash while AE2 loads its crafting logic. Everything else this mod hooks has existed since
+> 19.2.0-beta, so the floor is set by the newest member the mod uses.
+>
+> **On the 1.20.1 line.** There is no such question there: AE2 15.x never gained crafting-job suspend, so that
+> build has no freeze feature at all — no flag, no screen button — and the scheduler simply treats every order as
+> runnable. Everything else is the same shared code. What that target does need is **MixinExtras**, which
+> neither Forge 1.20.1 nor AE2 provides, so this mod bundles it inside its own jar.
 
 ## Build from source
 
 Nothing needs to be downloaded by hand — Gradle resolves everything, including AE2 and GuideME:
 
 ```powershell
-./gradlew build              # every target; the jar lands in mc1_21_1/build/libs/
-./gradlew :mc1_21_1:test     # L1 pure-logic assertions - fast, no Minecraft needed
+./gradlew build                 # both targets; each jar lands in its own build/libs/
+./gradlew :mc1_21_1:build       # schedulercore-mc1.21.1-1.0.5.jar
+./gradlew :mc1_20_1:build       # schedulercore-mc1.20.1-1.0.0.jar, reobfuscated to SRG (Forge's runtime names);
+                                # the un-obfuscated development copy is kept in that target's build/devlibs/
+./gradlew :mc1_21_1:test        # L1 pure-logic assertions - fast, no Minecraft needed
 ./gradlew :mc1_21_1:runServer   # headless dev server (see the rig commands below)
+./gradlew :mc1_20_1:runServer   # headless dev server for 1.20.1 (that target has no rig yet)
 ```
+
+> **Run Gradle itself on JDK 21, whichever target you build.** Each target compiles to its own Java version
+> through a toolchain (21 for `mc1_21_1`, 17 for `mc1_20_1`), but Gradle must not run on this machine's JDK 17:
+> it fails while wiring its own services, before any project is evaluated. `settings.gradle` declares the foojay
+> resolver so a 17 toolchain can be found or provisioned.
 
 ### Repository layout
 
@@ -101,7 +115,7 @@ One repository, two Minecraft targets, one shared core:
 |---|---|
 | `common/` | the sources **both** targets compile: the pure scheduling logic and the AE2-facing mixins. Not a Gradle project — each target adds this directory to its own source set, so it is compiled with that target's mappings (which is what makes one shared tree possible across two mapping generations). |
 | `mc1_21_1/` | target: Minecraft 1.21.1 / NeoForge 21.1.x — the released line. Owns the mod entry point, the block, the client models, the acceptance rig, the generation-specific mixins (job NBT signature, crafting-job suspend) and the mod metadata. |
-| `mc1_20_1/` | target: Minecraft 1.20.1 / Forge 47.4.x (also runs on NeoForge 47.1.x, since AE2 ships one jar tagged for both there). **Not wired up yet** — see the status note at the top of its `build.gradle`. |
+| `mc1_20_1/` | target: Minecraft 1.20.1 / Forge 47.4.x (also runs on NeoForge 47.1.x). Owns its own entry point, block and items, client models, the NBT accessor for this generation's no-argument `writeToNBT`, and its own mod metadata. Built by ModDevGradle's `legacyforge` plugin: ForgeGradle 6 cannot configure on a modern JDK, and this is the same toolchain the other target uses. |
 
 The two generation-specific capabilities the shared code needs — serialising a job (whose signature gained a
 registry lookup in 1.20.5) and suspending one (AE2 gained that in 19.2.16, so the whole 1.20.1 line has no such
@@ -115,7 +129,7 @@ generation means. The 1.21.1 target declares AE2 19.2.16+ and installs the acces
 
 | | |
 |---|---|
-| JDK | 21 for `mc1_21_1` (pinned per target; `mc1_20_1` will be 17) |
+| JDK | 21 for `mc1_21_1`, 17 for `mc1_20_1` (pinned per target as toolchains); Gradle itself on 21 |
 | Gradle | the wrapper is committed; use `./gradlew`, not a system Gradle |
 | AE2 / GuideME | resolved from [Modrinth's Maven](https://api.modrinth.com/maven) as `maven.modrinth:XxWD5pD3` / `maven.modrinth:Ck4E7v7R`, pinned by version in `gradle.properties` |
 

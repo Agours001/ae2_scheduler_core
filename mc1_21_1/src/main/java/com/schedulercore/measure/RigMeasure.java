@@ -655,26 +655,17 @@ public final class RigMeasure {
         var logic = be.getCluster().craftingLogic;
 
         if (toggle) {
-            // By name, never by call: isJobSuspended/setJobSuspended came with suspend in 19.2.16 and this mod
-            // runs on older AE2 as well. See RigSuspendApi for why that has to be reflection.
-            if (!RigSuspendApi.available()) {
-                source.sendFailure(Component.literal("[schedulercore] this AE2 has no crafting-job suspend "
-                        + "(added in 19.2.16), so there is no button to probe."));
-                return 0;
-            }
-            try {
-                boolean before = RigSuspendApi.isJobSuspended(logic);
-                RigSuspendApi.setJobSuspended(logic, !before); // what CraftingCPUMenu.toggleScheduling() does
-                boolean after = RigSuspendApi.isJobSuspended(logic);
-                source.sendSuccess(() -> Component.literal(
-                        "[schedulercore] uiprobe toggle (" + cpuName + "): isJobSuspended "
-                                + before + " -> " + after
-                                + (before == after ? "  <-- STUCK: the button cannot change it" : "  (toggled)")),
-                        true);
-            } catch (ReflectiveOperationException e) {
-                source.sendFailure(Component.literal("[schedulercore] suspend probe failed: " + e));
-                return 0;
-            }
+            // Direct calls: the mod requires AE2 19.2.16+, the release that added these two, so there is no
+            // older AE2 to be careful about any more. Until 1.0.5 these went through a reflection helper, which
+            // existed only because the declared floor was 19.2.0.
+            boolean before = logic.isJobSuspended();
+            logic.setJobSuspended(!before); // what CraftingCPUMenu.toggleScheduling() does
+            boolean after = logic.isJobSuspended();
+            source.sendSuccess(() -> Component.literal(
+                    "[schedulercore] uiprobe toggle (" + cpuName + "): isJobSuspended "
+                            + before + " -> " + after
+                            + (before == after ? "  <-- STUCK: the button cannot change it" : "  (toggled)")),
+                    true);
             return 1;
         }
 
@@ -703,8 +694,8 @@ public final class RigMeasure {
                 ? com.schedulercore.scheduler.SchedulingPolicy.Decision.NONE
                 : schedulerState.focusedSlotId();
         source.sendSuccess(() -> Component.literal("=== uiprobe " + cpuName + " (what the screen gets) ==="), false);
-        // Also by name: the status object only reports a suspend flag on AE2 that has one.
-        final String statusSuspended = RigSuspendApi.statusSuspended(status);
+        // What the screen's own status object says - a direct call, like the toggle above.
+        final String statusSuspended = String.valueOf(status.isSuspended());
         source.sendSuccess(() -> Component.literal(
                 "job=" + (out == null ? "none" : out.what().getDisplayName().getString())
                         + "  suspended=" + statusSuspended

@@ -26,6 +26,7 @@ import appeng.capabilities.Capabilities;
 
 import com.schedulercore.block.SchedulerCoreBlock;
 import com.schedulercore.block.SchedulerCoreBlockItem;
+import com.schedulercore.client.SchedulerCoreGuide;
 import com.schedulercore.item.SchedulerCoreItem;
 import com.schedulercore.support.ForgeSupport;
 
@@ -133,6 +134,9 @@ public final class SchedulerCore {
         CREATIVE_TABS.register(modBus);
         // Generic listener: this is how a Forge mod subscribes to AttachCapabilitiesEvent<BlockEntity>.
         MinecraftForge.EVENT_BUS.addGenericListener(BlockEntity.class, SchedulerCore::attachGridNodeHost);
+        // The in-game guide (GuideME, shipped by AE2). Data-only: pages live under
+        // assets/schedulercore/ae2guide/ and the page front matter maps items to them.
+        SchedulerCoreGuide.register();
         // Hand the shared scheduler this generation's two version-specific capabilities: job serialisation
         // (whose signature here takes no registry lookup at all) and crafting-job suspend, which AE2 only
         // gained in 19.2.16 - a 1.21.1-era release - so this generation installs none and every order is
