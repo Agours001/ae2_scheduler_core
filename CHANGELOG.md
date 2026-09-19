@@ -69,10 +69,13 @@ Minecraft generation is its own support window.
 - **This line's own block textures, built from AE2's co-processing unit.** Both looks are now taken from
   AE2 15.4.10's own crafting-unit textures, and they live in this target's resource set rather than in
   `common/`, because the 1.21.1 line's textures are drawn against that generation's AE2 and must not move.
-  The unformed face **is** the co-processing unit's texture with its purple pixels remapped onto the mod's
-  teal ramp and everything else copied through, so the silhouette, the frame and the shading are AE2's own
-  rather than a shape guessed from a brightness threshold — which is what the first attempt did, and why it
-  did not read as the part next to it. The linked face is the same unit's emissive band in the same teal,
+  The unformed face **is** the co-processing unit's texture with its purple pixels recoloured **by hue alone**
+  — each pixel keeps its own saturation and value, so the centre-outward shading the unit was drawn with
+  survives — and everything else copied through. That silhouette, frame and shading are AE2's own rather than
+  a shape guessed from a brightness threshold, which is what the first attempt did and why it did not read as
+  the part next to it; a brightness ramp was tried next and came out speckled, because a field of a hundred
+  near-identical purples does not survive being flattened onto three teal stops. The linked face is the same
+  unit's emissive band in the same teal,
   drawn over AE2's dark crafting-cube shell with the shell **baked into the texture**: two earlier attempts
   put the colour in the band's transparent pixels instead, and since those pixels are what mipmapping
   averages, the whole face came out blue and then white. Baking the shell in means the layer carries a
